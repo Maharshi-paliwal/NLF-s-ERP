@@ -68,8 +68,8 @@ const LoginForm = ({ onLoginSuccess }) => {
       <Container className="d-flex justify-content-center align-items-center vh-100">
         <Card className="login-card shadow-lg" style={{ width: "400px" }}>
           <Card.Body className="p-5">
-            <div className="text-center mb-4 mt-5">
-              <img src="/NLF.gif" width="300px" className="p-3"/>
+            <div className="text-center mb-4 ">
+              <img src="/NLF.gif" width="300px" className=" pb-3"/>
               <h5 className="fw-bold mb-2">ERP System</h5>
               <p className="text-muted">Please login to continue</p>
             </div>
@@ -92,9 +92,7 @@ const LoginForm = ({ onLoginSuccess }) => {
                   disabled={loading}
                   required
                 />
-                <Form.Text className="text-muted d-block mt-2">
-                  Test: admin@erp.com
-                </Form.Text>
+            
               </Form.Group>
 
               {/* Password Field */}
@@ -108,9 +106,9 @@ const LoginForm = ({ onLoginSuccess }) => {
                   disabled={loading}
                   required
                 />
-                <Form.Text className="text-muted d-block mt-2">
+                {/* <Form.Text className="text-muted d-block mt-2">
                   Test: admin123
-                </Form.Text>
+                </Form.Text> */}
               </Form.Group>
 
               {/* Role Dropdown */}
