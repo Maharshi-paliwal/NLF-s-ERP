@@ -140,7 +140,7 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
 
         {/* Master */}
         <NavLink
-          to="/master/users"
+          to="/masterview"
           className={`nav-link icons ${isMasterSubActive ? "active" : ""}`}
           onClick={() => setOpenMaster(!openMaster)}
         >
@@ -155,8 +155,36 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
         </NavLink>
         {openMaster && (
           <div className="submenu ms-4">
-            <NavLink to="/rolemanagement" className="nav-link">
-              <img src="/icons/leadership.png" alt="" className="me-2" /> Access
+            <NavLink to="/usertable" className="nav-link">
+              {/* <img src="/icons/leadership.png" alt="" className="me-2" /> User */} User
+            </NavLink>
+              <NavLink to="/branchmaster" className="nav-link">
+             Branch 
+            </NavLink>  
+            <NavLink to="/rolemaster" className="nav-link">
+               Role 
+            </NavLink>
+             <NavLink to="/materialmaster" className="nav-link">
+               Material
+            </NavLink>
+              <NavLink to="/unitmaster" className="nav-link">
+               Unit
+            </NavLink>
+            <NavLink to="/stagemaster" className="nav-link">
+               Stage
+            </NavLink>
+             <NavLink to="/departmentmaster" className="nav-link">
+               Department
+            </NavLink>
+
+            <NavLink to="/brandmaster" className="nav-link">
+               Brand
+            </NavLink> 
+              <NavLink to="/productmaster" className="nav-link">
+               Product
+            </NavLink>  
+            <NavLink to="/subproductmaster" className="nav-link">
+               Sub-Product
             </NavLink>
           </div>
         )}
@@ -194,7 +222,7 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
         {openLeadGen && (
           <div className="submenu ms-4">
             <NavLink
-              to="/sales"
+              to="/salesdashboard"
               className={`nav-link ${isSalespersonActive ? "active" : ""}`}
             >
               <img src="/icons/budgetRed.png" alt="" className="me-2" />
@@ -244,6 +272,18 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
         </NavLink>
         {openBackOffice && (
           <div className="submenu ms-4">
+            <NavLink
+              to="/quotesbackoffice"
+              className={`nav-link ${isWorkOrderActive ? "active" : ""}`}
+            >
+              <img
+                src="/icons/booking.png"
+                alt=""
+                className="me-2"
+                style={{ width: "22px" }}
+              />
+              Quotation
+            </NavLink>
             <NavLink
               to="/workorder"
               className={`nav-link ${isWorkOrderActive ? "active" : ""}`}

@@ -1,35 +1,51 @@
-// PDFMainPO.jsx
-import React, { useState, useRef } from 'react';
-import { Modal, Button } from 'react-bootstrap';
+import React, { useState, useRef, useEffect } from 'react';
+import { Modal, Button, Spinner } from 'react-bootstrap';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { leads } from '../data/mockdata'; // Adjust path as per your folder structure
+import axios from 'axios';
 
 const PDFClientPO = ({ show, onHide, poData }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [branchList, setBranchList] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const pdfContentRef = useRef();
+
+  // Fetch branch list when component mounts
+  useEffect(() => {
+    const fetchBranchList = async () => {
+      try {
+        setIsLoading(true);
+        const response = await axios.get("https://nlfs.in/erp/index.php/Erp/branch_list");
+        if (response.data.status === "true" && response.data.success === "1" && Array.isArray(response.data.data)) {
+          setBranchList(response.data.data);
+        }
+      } catch (error) {
+        console.error("Error fetching branch list:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBranchList();
+  }, []);
 
   if (!poData) return null;
 
-  // === Step 1: Resolve officeBranch from leadId ===
-  const lead = leads.find(l => l.leadId === poData.leadId);
-  const officeBranch = lead?.Officebranch || 'Kolkata';
+  // === Step 1: Resolve officeBranch from poData.branch ===
+  // Using the same approach as PDFPreview
+  const officeBranch = poData.branch || poData.officeBranch || 'Mumbai';
 
-  // === Step 2: Header image mapping ===
+  // === Step 2: Header image mapping (matching PDFPreview) ===
   const getHeaderImagePath = (branch) => {
     const branchMap = {
-      'Kolkata': '/extra/pdfpreviewKolkata.jpeg',
-      'Delhi': '/extra/pdfpreviewDelhi.jpeg',
-      'Indore': '/extra/pdfpreviewIndore.jpeg',
-      'Nagpur': '/extra/pdfpreviewNagpur.jpeg',
-      'Mumbai': '/extra/pdfpreviewMumbai.jpeg',
-      'Hyderabad': '/extra/pdfpreviewHyderabad.jpeg',
-      'Chennai': '/extra/pdfpreviewChennai.jpeg',
-      'Bangalore': '/extra/pdfpreviewBangalore.jpeg',
-      'Pune': '/extra/pdfpreviewPune.jpeg',
-      'Ahmedabad': '/extra/pdfpreviewAhmedabad.jpeg',
+      Kolkata: '/extra/Kolkata.jpeg',
+      Delhi: '/extra/Delhi.jpeg',
+      Indore: '/extra/Indore.jpeg',
+      Nagpur: '/extra/Nagpur.jpeg',
+      Mumbai: '/extra/Mumbai.jpeg',
+      // Add any additional branches if needed
     };
-    return branchMap[branch] || branchMap['Kolkata'];
+    return branchMap[branch] || branchMap['Mumbai'];
   };
 
   const headerImagePath = getHeaderImagePath(officeBranch);
@@ -76,222 +92,185 @@ const PDFClientPO = ({ show, onHide, poData }) => {
     return Number(num || 0).toLocaleString('en-IN');
   };
 
+  // Calculate totals
+  const subTotal = poData.items?.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0) || 0;
+  const gstAmount = (subTotal * (parseFloat(poData.gstPercentage) || 18)) / 100;
+  const grandTotal = subTotal + gstAmount;
+
+  // Table styling (matching PDFPreview)
+  const th = { border: "1px solid #000", padding: "6px", fontWeight: "bold" };
+  const td = { border: "1px solid #000", padding: "6px" };
+  const blueLeft = {
+    border: "1px solid #000",
+    padding: "6px",
+    background: "#007bff",
+    color: "white",
+    width: "70%",
+  };
+  const blueRight = {
+    border: "1px solid #000",
+    padding: "6px",
+    background: "#007bff",
+    color: "white",
+    textAlign: "right",
+  };
+
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
       <Modal.Header closeButton>
         <Modal.Title>Purchase Order Preview - {poData.poNumber || poData.poId}</Modal.Title>
       </Modal.Header>
       <Modal.Body style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-        <div
-          ref={pdfContentRef}
-          style={{
-            padding: '0',
-            backgroundColor: 'white',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '11px',
-            width: '210mm',
-            margin: '0 auto',
-          }}
-        >
-          {/* ===== DYNAMIC HEADER IMAGE ===== */}
+        {isLoading ? (
+          <div className="text-center p-5">
+            <Spinner animation="border" role="status" style={{ color: "#ed3131" }}>
+              <span className="visually-hidden">Loading...</span>
+            </Spinner>
+            <p className="mt-3">Loading branch data...</p>
+          </div>
+        ) : (
           <div
+            ref={pdfContentRef}
             style={{
-              width: '100%',
-              textAlign: 'center',
-              marginBottom: '10px',
-              border: '2px solid #000',
-              overflow: 'hidden',
+              padding: "15px",
+              backgroundColor: "white",
+              fontFamily: "Arial, sans-serif",
+              fontSize: "10.5px",
+              width: "210mm",          // Perfect A4 width
+              margin: "0 auto",
+              border: "1px solid #ddd",
             }}
           >
-            <img
-              src={headerImagePath}
-              alt={`Header for ${officeBranch}`}
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block',
-              }}
-            />
-          </div>
-
-          {/* ===== MAIN PO CONTENT ===== */}
-          <div style={{ border: '2px solid #000', margin: '10px' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', padding: '8px', borderBottom: '1px solid #000' }}>
-              <h1 style={{ margin: '0', fontSize: '16px', fontWeight: 'bold' }}>PURCHASE ORDER</h1>
-            </div>
-
-            {/* PO Number & Date */}
+            {/* === HEADER IMAGE (Dynamic based on branch) === */}
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 10px',
-                borderBottom: '1px solid #000',
-                fontSize: '11px',
+                width: "100%",
+                border: "1px solid #000",
+                overflow: "hidden",
               }}
             >
-              <span style={{ fontWeight: 'bold' }}>{poData.poNumber || poData.poId}</span>
-              <span>Date - {poData.poDate ? new Date(poData.poDate).toLocaleDateString('en-IN') : 'N/A'}</span>
+              <img
+                src={headerImagePath}
+                alt={`Header for ${officeBranch}`}
+                style={{ width: "100%", height: "auto", display: "block" }}
+              />
             </div>
 
-            {/* Client Details */}
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: '11px' }}>
-              <div style={{ marginBottom: '3px' }}>
-                <strong>To,</strong>
+            {/* === PO TITLE === */}
+            <h3 style={{ textAlign: "center", margin: "15px 0", fontWeight: "bold" }}>
+              PURCHASE ORDER
+            </h3>
+
+            {/* === PO NO / DATE === */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div>
+                <strong>{poData.poNumber || poData.poId}</strong>
               </div>
-              <div style={{ marginBottom: '2px', fontWeight: 'bold' }}>
-                {poData.companyName || poData.clientName || 'Client Name'}
-              </div>
-              <div style={{ marginBottom: '2px' }}>{poData.siteAddress || 'Site Address'}</div>
-              <div style={{ marginBottom: '2px' }}>
-                GST: {poData.gstNumber || 'Not Provided'}
+              <div>
+                <strong>Date:</strong> {poData.poDate ? new Date(poData.poDate).toLocaleDateString('en-IN') : 'N/A'}
               </div>
             </div>
 
-            {/* Subject */}
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: '11px' }}>
-              <strong>Subject: Purchase Order for {poData.projectName || 'Office Furniture'}</strong>
+            {/* === CLIENT DETAILS === */}
+            <div style={{ lineHeight: "1.4", marginBottom: "15px" }}>
+              <p style={{ margin: 0 }}><strong>To,</strong></p>
+              <p style={{ margin: 0 }}>{poData.companyName || poData.clientName || '-'}</p>
+              <p style={{ margin: 0 }}>{poData.siteAddress || '-'}</p>
+              <p style={{ margin: 0 }}>GST: {poData.gstNumber || 'Not Provided'}</p>
+
+              <p style={{ marginTop: "10px" }}>
+                <strong>Subject:</strong> Purchase Order for {poData.projectName || 'Office Furniture'}
+              </p>
             </div>
 
-            {/* Greeting */}
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', fontSize: '11px' }}>
-              <div style={{ marginBottom: '3px' }}>
-                <strong>Dear Sir/Madam,</strong>
-              </div>
-              <div>We are pleased to issue this Purchase Order as per the agreed terms:</div>
-            </div>
+            {/* === DEAR SIR TEXT === */}
+            <p style={{ marginBottom: "15px" }}>
+              Dear Sir/Madam, <br />
+              We are pleased to issue this Purchase Order as per agreed terms:
+            </p>
 
-            {/* Items Table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+            {/* === ITEMS TABLE === */}
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ backgroundColor: '#4A90E2', color: 'white' }}>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '8%' }}>S.No</th>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '50%' }}>Description</th>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '8%' }}>Unit</th>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '10%' }}>Qty</th>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '12%' }}>Rate</th>
-                  <th style={{ padding: '6px', border: '1px solid #000', textAlign: 'center', width: '12%' }}>Amount</th>
+                <tr style={{ backgroundColor: "#007bff", color: "white", textAlign: "center" }}>
+                  <th style={th}>S.No</th>
+                  <th style={th}>Description of Item</th>
+                  <th style={th}>Unit</th>
+                  <th style={th}>Qty</th>
+                  <th style={th}>Rate</th>
+                  <th style={th}>Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {poData.items?.map((item, index) => (
-                  <tr key={index}>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{index + 1}</td>
-                    <td style={{ padding: '8px', border: '1px solid #000', fontSize: '9px', lineHeight: '1.3' }}>
-                      <div style={{ fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>
+                {poData.items?.map((item, idx) => (
+                  <tr key={idx}>
+                    <td style={td}>{idx + 1}</td>
+                    <td style={td}>
+                      <div style={{ fontWeight: "bold", textTransform: "uppercase", marginBottom: "2px" }}>
                         {item.material || 'ITEM'}
                       </div>
                       <div>{item.description}</div>
                     </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{item.unit}</td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>
-                      {formatINR(item.quantity)}
-                    </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'right' }}>
-                      {formatINR(item.rate)}
-                    </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'right' }}>
-                      {formatINR(item.total || item.quantity * item.rate)}
-                    </td>
+                    <td style={td}>{item.unit || "-"}</td>
+                    <td style={td}>{formatINR(item.quantity)}</td>
+                    <td style={td}>{formatINR(item.rate)}</td>
+                    <td style={td}>{formatINR(item.total || item.quantity * item.rate)}</td>
                   </tr>
                 ))}
-                {/* Additional service items (e.g., delivery) */}
+                {/* Additional service items */}
                 {poData.additionalDetails?.map((item, index) => (
                   <tr key={`add-${index}`}>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>*</td>
-                    <td style={{ padding: '8px', border: '1px solid #000', fontSize: '9px' }}>
+                    <td style={td}>*</td>
+                    <td style={td}>
                       <strong>{item.description}</strong>
                     </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>{item.unit}</td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'center' }}>
-                      {formatINR(item.quantity)}
-                    </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'right' }}>
-                      {formatINR(item.rate)}
-                    </td>
-                    <td style={{ padding: '8px', border: '1px solid #000', textAlign: 'right' }}>
-                      {formatINR(item.total || item.quantity * item.rate)}
-                    </td>
+                    <td style={td}>{item.unit}</td>
+                    <td style={td}>{formatINR(item.quantity)}</td>
+                    <td style={td}>{formatINR(item.rate)}</td>
+                    <td style={td}>{formatINR(item.total || item.quantity * item.rate)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ width: '200px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>Total Amount</td>
-                      <td style={{ padding: '6px', border: '1px solid #000', textAlign: 'right', fontWeight: 'bold' }}>
-                        {formatINR(poData.totalAmount)}
-                      </td>
-                    </tr>
-                    {poData.gstApplicable && (
-                      <>
-                        <tr>
-                          <td style={{ padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>GST @ {poData.gstPercentage || 18}%</td>
-                          <td style={{ padding: '6px', border: '1px solid #000', textAlign: 'right' }}>
-                            {formatINR(poData.gstAmount)}
-                          </td>
-                        </tr>
-                        <tr style={{ backgroundColor: '#4A90E2', color: 'white' }}>
-                          <td style={{ padding: '6px', border: '1px solid #000', fontWeight: 'bold' }}>Grand Total</td>
-                          <td style={{ padding: '6px', border: '1px solid #000', textAlign: 'right', fontWeight: 'bold' }}>
-                            {formatINR(poData.totalInvoiceAmount || poData.totalAmount)}
-                          </td>
-                        </tr>
-                      </>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            {/* === AMOUNT BLUE BOX === */}
+            <div style={{ float: "right", width: "45%", marginTop: "12px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <tbody>
+                  <tr>
+                    <td style={blueLeft}>Basic Amount</td>
+                    <td style={blueRight}>₹{formatINR(subTotal)}</td>
+                  </tr>
+                  <tr>
+                    <td style={blueLeft}>GST @ {poData.gstPercentage || 18}%</td>
+                    <td style={blueRight}>₹{formatINR(gstAmount)}</td>
+                  </tr>
+                  <tr>
+                    <td style={blueLeft}><b>Grand Total</b></td>
+                    <td style={blueRight}><b>₹{formatINR(grandTotal)}</b></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
-            {/* Payment Terms */}
-            <div style={{ padding: '8px 10px', borderTop: '1px solid #000', fontSize: '10px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Payment Terms:</div>
-              <div>
-                {poData.termsAndConditions?.paymentTerms?.description ||
+            <div style={{ clear: "both", marginTop: "50px" }}>
+              <h4>Terms & Conditions:</h4>
+              <p style={{ lineHeight: "1.4" }}>
+                Payment Terms: {poData.termsAndConditions?.paymentTerms?.description ||
                   `${poData.advancePaymentPercentage || 0}% advance, ${poData.balancePaymentPercentage || 0}% on delivery`}
-              </div>
-            </div>
-
-            {/* Delivery Schedule */}
-            <div style={{ padding: '8px 10px', borderTop: '1px solid #000', fontSize: '10px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Delivery Schedule:</div>
-              <div>
+                <br />
                 Expected Delivery: {poData.expectedDeliveryDate ? new Date(poData.expectedDeliveryDate).toLocaleDateString('en-IN') : 'TBD'}
-              </div>
-              <div>
+                <br />
                 Location: {poData.siteAddress}
-              </div>
+              </p>
             </div>
 
-            {/* Footer inside main border */}
-            <div style={{ padding: '6px 10px', borderTop: '1px solid #000', fontSize: '10px', textAlign: 'center' }}>
-              <div>Thank you for your order. We look forward to a successful collaboration.</div>
+            {/* === FOOTER IMAGE INSIDE PDF === */}
+            <div style={{ marginTop: "25px", width: "100%", borderTop: "2px solid #000" }}>
+              <img src="/extra/Footer.jpeg" style={{ width: "100%", height: "auto" }} />
             </div>
           </div>
-
-          {/* ===== FOOTER BANNER (same as quotation) ===== */}
-          <div
-            style={{
-              padding: '8px 15px',
-              fontSize: '9px',
-              textAlign: 'center',
-              marginTop: '10px',
-            }}
-          >
-            <img
-              src="/extra/pdfpreviewFooter.jpeg"
-              style={{ width: '775px', height: '75px' }}
-              alt="Footer Banner"
-            />
-          </div>
-        </div>
+        )}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={onHide}>

@@ -1,441 +1,9 @@
-// import React, { useState, useEffect } from "react";
-// import { Link, useNavigate } from "react-router-dom";
-// import {
-//     Card,
-//     Container,
-//     Row,
-//     Col,
-//     Button,
-//     Form,
-//     Pagination,
-//     Modal, // 1. IMPORT MODAL
-// } from "react-bootstrap";
-// import { FaEye, FaEdit, FaCheckCircle, FaEnvelope, FaFilePdf, FaDownload, FaUser } from "react-icons/fa";
-// import { quotations as mockQuotations } from "../data/mockdata";
-
-// // NOTE: You'll need to create or correctly reference this component.
-// // Based on admin approval, it should be in the same relative path.
-// import PDFPreview from "../components/PDFpreview.jsx"; // 2. IMPORT PDFPreview
-
-// // Helper function to extract numeric value from round identifier for sorting
-// const getRoundSortValue = (roundId) => {
-//     if (!roundId || roundId === 'Initial') return 0;
-//     // Assuming round identifiers are like 'R1', 'R2', etc.
-//     const match = roundId.match(/^R(\d+)$/);
-//     return match ? parseInt(match[1]) : 0;
-// };
-
-// export default function ClientLead() {
-//     const [quotationRounds, setQuotationRounds] = useState([]);
-//     const [loading, setLoading] = useState(false);
-//     // State variables copied from AdminApproval
-//     const [showConfirmModal, setShowConfirmModal] = useState(false);
-//     const [pendingAction, setPendingAction] = useState(null); // Added for completeness, though not currently used in this file's logic
-//     // State variables for PDF preview
-//     const [showPDFPreview, setShowPDFPreview] = useState(false); // 3. ADD PDF PREVIEW STATE
-//     const [selectedQuotation, setSelectedQuotation] = useState(null); // 4. ADD SELECTED QUOTATION STATE
-
-//     const [searchTerm, setSearchTerm] = useState("");
-//     const [currentPage, setCurrentPage] = useState(1);
-//     const roundsPerPage = 10;
-
-//     const navigate = useNavigate();
-
-//     // Modal handlers (for Confirm Modal - copied for completeness)
-//     const handleShowModal = (action) => {
-//         setPendingAction(action);
-//         setShowConfirmModal(true);
-//     };
-
-//     const handleConfirmAction = () => {
-//         if (pendingAction) pendingAction.execute();
-//         setShowConfirmModal(false);
-//         setPendingAction(null);
-//     };
-
-//     const handleCancelAction = () => {
-//         setShowConfirmModal(false);
-//         setPendingAction(null);
-//     };
-
-//     // PDF Preview handlers (copied from AdminApproval)
-//     const handleShowPDFPreview = (quotationData) => { // 5. IMPLEMENT SHOW PDF PREVIEW
-//         console.log("Opening PDF preview for:", quotationData);
-//         // Note: The quotationData passed here is the flattened round object
-//         // For the PDF component to work, it might need the full quote object from mockQuotations.
-//         // For now, we pass the flattened round and assume PDFPreview can handle it or fetch what it needs.
-//         // In a real application, you might need to find the full quote object here.
-
-//         // Find the full quotation object based on the round's quotationId
-//         const fullQuoteData = mockQuotations.flat().find(q => q.quotationId === quotationData.quotationId);
-
-//         // Pass the full quote data to the PDF preview component
-//         setSelectedQuotation(fullQuoteData);
-//         setShowPDFPreview(true);
-//     };
-
-//     const handleClosePDFPreview = () => { // 6. IMPLEMENT CLOSE PDF PREVIEW
-//         setShowPDFPreview(false);
-//         setSelectedQuotation(null);
-//     };
-
-//     // Helper function to check if this is the latest iteration for a quotation
-//     const isLatestIteration = (quotationId, roundIdentifier, allRounds) => {
-//         // Get all rounds for this quotation ID
-//         const quotationRounds = allRounds.filter(r => r.quotationId === quotationId);
-
-//         // Find the latest round by comparing round values
-//         const latestRound = quotationRounds.reduce((latest, current) => {
-//             const latestValue = getRoundSortValue(latest.roundIdentifier);
-//             const currentValue = getRoundSortValue(current.roundIdentifier);
-//             // This is a slight correction in logic to handle the initial case better
-//             if (!latest) return current;
-//             return currentValue > latestValue ? current : latest;
-//         }, quotationRounds[0]);
-
-//         return latestRound.roundIdentifier === roundIdentifier;
-//     };
-
-//     useEffect(() => {
-//         const fetchQuotationRounds = async () => {
-//             try {
-//                 setLoading(true);
-
-//                 const allQuotationRounds = [];
-
-//                 // Flatten the data
-//                 mockQuotations.forEach((item) => {
-//                     const quotes = Array.isArray(item) ? item : [item];
-
-//                     quotes.forEach((q) => {
-//                         if (!q || !q.customer || !q.customer.name || !q.quotationId) {
-//                             console.warn("Skipping incomplete quotation entry:", q);
-//                             return;
-//                         }
-
-//                         const baseData = {
-//                             name: q.customer.name,
-//                             email: q.customer.email,
-//                             mobile: q.customer.mobile,
-//                             id: q.customer.id,
-//                             quotationId: q.quotationId,
-//                             // Added amount to the base data, which is useful for the table but not strictly necessary for this task
-//                             amount: q.amount,
-//                         };
-
-//                         if (q.rounds && q.rounds.length > 0) {
-//                             q.rounds.forEach((round) => {
-//                                 const isDraftRound = round.round === "";
-//                                 const revisionIdentifier = isDraftRound ? "Initial" : round.round;
-
-//                                 const fullQuotationId = isDraftRound
-//                                     ? q.quotationId
-//                                     : `${q.quotationId}-${round.round}`;
-
-//                                 allQuotationRounds.push({
-//                                     ...baseData,
-//                                     key: `${q.quotationId}-${revisionIdentifier}`,
-//                                     fullQuotationId: fullQuotationId,
-//                                     roundIdentifier: revisionIdentifier,
-//                                     roundStatus: isDraftRound ? "draft" : round.status, // Use 'draft' as status if round is empty
-//                                     roundDate: round.date,
-//                                 });
-//                             });
-//                         } else {
-//                             allQuotationRounds.push({
-//                                 ...baseData,
-//                                 key: `${q.quotationId}-initial`,
-//                                 fullQuotationId: q.quotationId,
-//                                 roundIdentifier: "Initial",
-//                                 roundStatus: "draft", // Use 'draft' as status if no rounds exist
-//                                 roundDate: q.customer.date || "",
-//                             });
-//                         }
-//                     });
-//                 });
-
-//                 // Group by quotationId and then sort within each group (to ensure latest round logic works)
-//                 const groupedRounds = new Map();
-//                 allQuotationRounds.forEach(round => {
-//                     const id = round.quotationId;
-//                     if (!groupedRounds.has(id)) {
-//                         groupedRounds.set(id, []);
-//                     }
-//                     groupedRounds.get(id).push(round);
-//                 });
-
-//                 let finalSortedRounds = [];
-//                 groupedRounds.forEach((roundsArray) => {
-//                     roundsArray.sort((a, b) => {
-//                         const valA = getRoundSortValue(a.roundIdentifier);
-//                         const valB = getRoundSortValue(b.roundIdentifier);
-//                         return valB - valA;
-//                     });
-
-//                     finalSortedRounds.push(...roundsArray);
-//                 });
-
-//                 setQuotationRounds(finalSortedRounds);
-//             } catch (error) {
-//                 console.error(error);
-//             } finally {
-//                 setLoading(false);
-//             }
-//         };
-//         fetchQuotationRounds();
-//     }, []);
-
-//     const handleViewClient = (id) => {
-//         // This is still a console log as it was in the original code
-//         console.log(`Viewing client details for ID: ${id}`);
-//     };
-
-//     const handleConvertToPO = (quotationId, roundIdentifier) => {
-//         const roundPart = roundIdentifier === 'Initial' ? 'initial' : roundIdentifier;
-//         const path = `/po/new/${quotationId}/${roundPart}`;
-//         navigate(path);
-//     };
-
-//     const handleCreateRevision = (quotationId, roundIdentifier) => {
-//         navigate(`/quotations/${quotationId}/new-revision`);
-//     };
-
-//     // The old simple handleShowPDFPreview has been replaced by the implemented one above.
-
-//     // Filter logic 
-//     const filteredRounds = quotationRounds.filter((r) => {
-//         const term = searchTerm.toLowerCase();
-//         const valuesToSearch = `${r.name} ${r.quotationId} ${r.fullQuotationId} ${r.roundIdentifier} ${r.roundDate} ${r.roundStatus}`.toLowerCase();
-//         return valuesToSearch.includes(term);
-//     });
-
-//     // Pagination Logic
-//     const indexOfLastRound = currentPage * roundsPerPage;
-//     const indexOfFirstRound = indexOfLastRound - roundsPerPage;
-
-//     const currentRounds = filteredRounds.slice(
-//         indexOfFirstRound,
-//         indexOfLastRound
-//     );
-//     const totalPages = Math.ceil(filteredRounds.length / roundsPerPage);
-
-//     const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
-//     return (
-//         <Container fluid>
-//             <Row>
-//                 <Col md="12">
-//                     <Card className="strpied-tabled-with-hover">
-//                         <Card.Header
-//                             style={{
-//                                 backgroundColor: "#fff",
-//                                 borderBottom: "none",
-//                             }}
-//                         >
-//                             <Row className="align-items-center">
-//                                 <Col className="d-flex align-items-center">
-//                                     <Card.Title style={{ marginTop: "2rem", fontWeight: "700" }}>
-//                                         Quotation Rounds
-//                                     </Card.Title>
-//                                 </Col>
-//                                 <Col className="d-flex justify-content-end align-items-center gap-2">
-//                                     <Form.Control
-//                                         type="text"
-//                                         placeholder="Search by Name, Quote No, Revision, Status..."
-//                                         value={searchTerm}
-//                                         onChange={(e) => {
-//                                             setSearchTerm(e.target.value);
-//                                             setCurrentPage(1);
-//                                         }}
-//                                         className="custom-searchbar-input nav-search"
-//                                         style={{ width: "20vw" }}
-//                                     />
-//                                     <Button as={Link} to="/new-quotation" className="add-customer-btn btn btn-primary">
-//                                         + Create Quotation
-//                                     </Button>
-//                                 </Col>
-//                             </Row>
-//                         </Card.Header>
-
-//                         <Card.Body className="table-full-width table-responsive d-flex justify-content-center align-items-center">
-//                             <div className="table-responsive">
-//                                 <table className="table table-striped table-hover">
-//                                     <thead>
-//                                         <tr>
-//                                             <th>Sr. no</th>
-//                                             <th>Name</th>
-//                                             <th>Quote No</th>
-//                                             <th>Revision</th>
-//                                             <th>Round Date</th>
-//                                             <th>Status</th>
-//                                             <th style={{ minWidth: '120px' }}>PO Action</th>
-//                                             <th style={{ minWidth: '150px' }}>Actions</th>
-//                                         </tr>
-//                                     </thead>
-//                                     <tbody>
-//                                         {loading ? (
-//                                             <tr>
-//                                                 <td colSpan="8" className="text-center p-4">
-//                                                     Loading quotations...
-//                                                 </td>
-//                                             </tr>
-//                                         ) : currentRounds.length > 0 ? (
-//                                             currentRounds.map((round, index) => {
-//                                                 const isLatest = isLatestIteration(
-//                                                     round.quotationId,
-//                                                     round.roundIdentifier,
-//                                                     quotationRounds
-//                                                 );
-//                                                 const showCreateRevision = isLatest && round.roundStatus === 'revise';
-
-//                                                 return (
-//                                                     <tr key={round.key}>
-//                                                         <td>{indexOfFirstRound + index + 1}</td>
-//                                                         <td>{round.name}</td>
-//                                                         <td>{round.fullQuotationId}</td>
-//                                                         <td>
-//                                                             {round.roundIdentifier && round.roundIdentifier !== 'Initial'
-//                                                                 ? round.roundIdentifier
-//                                                                 : "-"}
-//                                                         </td>
-//                                                         <td>{round.roundDate || "-"}</td>
-//                                                         <td>
-//                                                             <span
-//                                                                 className={`badge ${round.roundStatus === 'accepted' ? 'bg-success' :
-//                                                                     round.roundStatus === 'revise' ? 'bg-warning' :
-//                                                                         round.roundStatus === 'pending' ? 'bg-info' :
-//                                                                             round.roundStatus === 'draft' ? 'bg-secondary' :
-//                                                                                 'bg-secondary'
-//                                                                     }`}
-//                                                             >
-//                                                                 {round.roundStatus || 'draft'}
-//                                                             </span>
-//                                                         </td>
-
-//                                                         {/* Convert to PO Button */}
-//                                                         <td data-label="PO Action">
-//                                                             {round.roundStatus === 'accepted' && (
-//                                                                 <Button
-//                                                                     variant="success"
-//                                                                     size="sm"
-//                                                                     onClick={() => handleConvertToPO(round.quotationId, round.roundIdentifier)}
-//                                                                     style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
-//                                                                 >
-//                                                                     Convert to PO
-//                                                                 </Button>
-//                                                             )}
-//                                                         </td>
-
-//                                                         <td data-label="Actions">
-//                                                             <div className="table-actions d-flex gap-3">
-//                                                                 {/* Show Create Revision Button OR View Button */}
-//                                                                 {showCreateRevision ? (
-//                                                                     <button
-//                                                                         className="btn btn-sm btn-warning"
-//                                                                         style={{ padding: '0.3rem 0.5rem' }}
-//                                                                         onClick={() => handleCreateRevision(round.quotationId, round.roundIdentifier)}
-//                                                                         title="Create Revision"
-//                                                                     >
-//                                                                         <FaEdit size={15} />
-//                                                                     </button>
-//                                                                 ) : (
-//                                                                     <Link to={`/quotations/${round.quotationId}/${round.roundIdentifier || 'initial'}?view=true`}>
-//                                                                         <button
-//                                                                             className="buttonEye"
-//                                                                             style={{ color: "white" }}
-//                                                                             onClick={() => handleViewClient(round.id)}
-//                                                                             title="View Quotation"
-//                                                                         >
-//                                                                             <FaEye size={15} />
-//                                                                         </button>
-//                                                                     </Link>
-//                                                                 )}
-
-//                                                                 {/* Download PDF button — only if accepted */}
-//                                                                 {round.roundStatus === 'accepted' ? (
-//                                                                     <button
-//                                                                         className="btn btn-sm btn-outline-secondary" // Added bootstrap classes for style
-//                                                                         style={{ color: "red" }}
-//                                                                         title="Preview & Download Quotation" // Changed title to match AdminApproval.jsx
-//                                                                         onClick={(e) => {
-//                                                                             e.stopPropagation();
-//                                                                             handleShowPDFPreview(round); // Now calls the state-updating function
-//                                                                         }}
-//                                                                     >
-//                                                                         <FaDownload size={15} />
-//                                                                     </button>
 
 
-//                                                                 ) : (
-// ""
-//                                                                 )}
-//                                                             </div>
-//                                                         </td>
-//                                                     </tr>
-//                                                 );
-//                                             })
-//                                         ) : (
-//                                             <tr>
-//                                                 <td colSpan="8" className="text-center p-4">
-//                                                     No quotations found.
-//                                                 </td>
-//                                             </tr>
-//                                         )}
-//                                     </tbody>
-//                                 </table>
-//                             </div>
-//                         </Card.Body>
 
-//                         {/* Pagination */}
-//                         {totalPages > 1 && (
-//                             <div className="d-flex justify-content-center p-3">
-//                                 <Pagination>
-//                                     <Pagination.First
-//                                         onClick={() => paginate(1)}
-//                                         disabled={currentPage === 1}
-//                                     />
-//                                     <Pagination.Prev
-//                                         onClick={() => paginate(currentPage - 1)}
-//                                         disabled={currentPage === 1}
-//                                     />
-//                                     {Array.from({ length: totalPages }, (_, i) => (
-//                                         <Pagination.Item
-//                                             key={i + 1}
-//                                             active={i + 1 === currentPage}
-//                                             onClick={() => paginate(i + 1)}
-//                                         >
-//                                             {i + 1}
-//                                         </Pagination.Item>
-//                                     ))}
-//                                     <Pagination.Next
-//                                         onClick={() => paginate(currentPage + 1)}
-//                                         disabled={currentPage === totalPages}
-//                                     />
-//                                     <Pagination.Last
-//                                         onClick={() => paginate(totalPages)}
-//                                         disabled={currentPage === totalPages}
-//                                     />
-//                                 </Pagination>
-//                             </div>
-//                         )}
-//                     </Card>
-//                 </Col>
-//             </Row>
-
-//             {/* 7. PDF Preview Modal (Copied from AdminApproval) */}
-//             <PDFPreview
-//                 show={showPDFPreview}
-//                 onHide={handleClosePDFPreview}
-//                 quotationData={selectedQuotation}
-//             />
-//         </Container>
-//     );
-// }
-
-
-// ClientLead.jsx
+// src/pages/ClientLead.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom"; // Combined import
 import {
   Card,
   Container,
@@ -444,189 +12,258 @@ import {
   Button,
   Form,
   Pagination,
-  Modal,
+  Alert,
 } from "react-bootstrap";
-import {
-  FaEye,
-  FaEdit,
-  FaCheckCircle,
-  FaEnvelope,
-  FaFilePdf,
-  FaDownload,
-  FaUser, // ✅ Imported FaUser
-} from "react-icons/fa";
-import { quotations as mockQuotations } from "../data/mockdata";
+import { FaEye, FaEdit, FaDownload, FaUser } from "react-icons/fa";
 import PDFPreview from "../components/PDFpreview.jsx";
-import PDFClientPO from "../components/PDFClientPO.jsx"; 
-import { po as poData } from "../data/mockdata";
+import PDFClientPO from "../components/PDFClientPO.jsx";
 
-// Helper function to extract numeric value from round identifier for sorting
+// ======================
+// Helper & Utility Functions
+// ======================
+
 const getRoundSortValue = (roundId) => {
   if (!roundId || roundId === "Initial") return 0;
   const match = roundId.match(/^R(\d+)$/);
   return match ? parseInt(match[1]) : 0;
 };
 
+const getDisplayStatus = (status, adminApproval) => {
+  if (
+    adminApproval &&
+    ["yes", "approved", "1"].includes(adminApproval.toLowerCase())
+  ) {
+    return "accepted";
+  }
+
+  if (status) {
+    const s = status.toLowerCase();
+    if (s === "draft") return "draft";
+    if (s === "revise") return "revise";
+    if (s === "pending") return "pending";
+    if (s === "accepted" || s === "approved") return "accepted";
+    return s;
+  }
+
+  return "draft";
+};
+
+const formatQuoteNumber = (quoteNo) => {
+  return quoteNo && quoteNo.trim() !== "" ? quoteNo : "-";
+};
+
+// ⭐ ADDED: same helper you use in AdminApproval.jsx
+const isApprovedValue = (val) => {
+  if (!val) return false;
+  const s = String(val).trim().toLowerCase();
+  return ["yes", "approved", "true", "1"].includes(s);
+};
+
+// ======================
+// Main Component
+// ======================
+
 export default function ClientLead() {
+  const location = useLocation(); // Get the current location object
+  
   const [quotationRounds, setQuotationRounds] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
+  const [error, setError] = useState(null);
+
   const [showPDFPreview, setShowPDFPreview] = useState(false);
-  const [selectedQuotation, setSelectedQuotation] = useState(null);
+  const [selectedQuoteId, setSelectedQuoteId] = useState(null);
+
+  // PO-specific state
+  const [poList, setPoList] = useState([]);        // from list_po
+  const [poLoading, setPoLoading] = useState(false);
+  const [selectedPO, setSelectedPO] = useState(null);
+  const [showPDFClientPO, setShowPDFClientPO] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const roundsPerPage = 10;
-  const [showPDFClientPO, setShowPDFClientPO] = useState(false);
-const [selectedPO, setSelectedPO] = useState(null);
+
+  const [fetchingQuoteNo, setFetchingQuoteNo] = useState(false);
 
   const navigate = useNavigate();
 
-  // Modal handlers (kept for completeness)
-  const handleShowModal = (action) => {
-    setPendingAction(action);
-    setShowConfirmModal(true);
+  // ======================
+  // Fetch Next Quote No  (Create Quotation)
+  // ======================
+  const fetchNextQuoteNumber = async () => {
+    try {
+      setFetchingQuoteNo(true);
+      const response = await fetch("https://nlfs.in/erp/index.php/Erp/get_next_quote_no");
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const result = await response.json();
+      if (result.status && result.success === "1") {
+        return result.next_quote_no;
+      } else {
+        throw new Error(result.message || "Failed to fetch next quote number");
+      }
+    } catch (error) {
+      console.error("Error fetching next quote number:", error);
+      setError(error.message || "Failed to get next quote number");
+      return null;
+    } finally {
+      setFetchingQuoteNo(false);
+    }
   };
 
-  const handleConfirmAction = () => {
-    if (pendingAction) pendingAction.execute();
-    setShowConfirmModal(false);
-    setPendingAction(null);
+  const handleCreateNewQuotation = async () => {
+    const nextQuoteNo = await fetchNextQuoteNumber();
+    if (nextQuoteNo) {
+      navigate(`/new-quotation?quoteNo=${encodeURIComponent(nextQuoteNo)}`);
+    }
   };
 
-  const handleCancelAction = () => {
-    setShowConfirmModal(false);
-    setPendingAction(null);
-  };
-
-  // PDF Preview handlers
-  const handleShowPDFPreview = (quotationData) => {
-    const fullQuoteData = mockQuotations.flat().find(
-      (q) => q.quotationId === quotationData.quotationId
-    );
-    setSelectedQuotation(fullQuoteData);
+  // ======================
+  // QUOTATION PDF preview
+  // ======================
+  const handleShowPDFPreview = (quoteId) => {
+    setSelectedQuoteId(quoteId);
     setShowPDFPreview(true);
   };
 
   const handleClosePDFPreview = () => {
     setShowPDFPreview(false);
-    setSelectedQuotation(null);
+    setSelectedQuoteId(null);
   };
 
-  const handleShowPDFClientPO = (quotationId, roundIdentifier) => {
-  // Find PO that matches quotationId and quotationRound
-  const matchedPO = poData.find(p => 
-    p.quotationId === quotationId && 
-    p.quotationRound === (roundIdentifier === 'Initial' ? '' : roundIdentifier)
-  );
-
-  if (matchedPO) {
-    setSelectedPO(matchedPO);
-    setShowPDFClientPO(true);
-  } else {
-    // Optional: fallback to client view if no PO
-    const round = quotationRounds.find(r => r.quotationId === quotationId && r.roundIdentifier === roundIdentifier);
-    if (round?.id) {
-      navigate(`/clients/${round.id}`);
+  // ======================
+  // CLIENT PO PDF preview / download
+  // ======================
+  const handleShowPDFClientPO = async (quotationId) => {
+    // First, find the quotation to get the fullQuotationId
+    const quotation = quotationRounds.find(q => String(q.quotationId) === String(quotationId));
+    
+    if (!quotation) {
+      setError("Quotation not found");
+      return;
     }
-  }
-};
+    
+    // Now find PO using the fullQuotationId
+    const poEntry = poList.find(
+      (po) => String(po.quote_id) === String(quotation.fullQuotationId)
+    );
 
-const handleClosePDFClientPO = () => {
-  setShowPDFClientPO(false);
-  setSelectedPO(null);
-};
+    if (!poEntry) {
+      // If PO not found, navigate to PO creation
+      navigate(`/po/new/${quotationId}/initial`);
+      return;
+    }
 
-  // Helper: Check if round is the latest for its quotation
-  const isLatestIteration = (quotationId, roundIdentifier, allRounds) => {
-    const quotationRounds = allRounds.filter((r) => r.quotationId === quotationId);
-    const latestRound = quotationRounds.reduce((latest, current) => {
-      const latestValue = getRoundSortValue(latest?.roundIdentifier || "Initial");
-      const currentValue = getRoundSortValue(current.roundIdentifier);
-      if (!latest) return current;
-      return currentValue > latestValue ? current : latest;
-    }, null);
-    return latestRound?.roundIdentifier === roundIdentifier;
+    try {
+      setPoLoading(true);
+      setError(null);
+
+      const response = await fetch(
+        "https://nlfs.in/erp/index.php/Api/get_po_id",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ po_id: poEntry.po_id }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.status === "true" && result.success === "1" && result.data) {
+        setSelectedPO(result.data);
+        setShowPDFClientPO(true);
+      } else {
+        throw new Error(result.message || "Failed to fetch PO details");
+      }
+    } catch (err) {
+      console.error("Error fetching PO details:", err);
+      setError(err.message || "Failed to fetch PO details");
+    } finally {
+      setPoLoading(false);
+    }
   };
 
-  // Fetch and flatten quotation rounds
+  const handleClosePDFClientPO = () => {
+    setShowPDFClientPO(false);
+    setSelectedPO(null);
+  };
+
+  // Latest iteration helper (still available if needed)
+  const isLatestIteration = (quotationId, roundIdentifier, allRounds) => {
+    const rounds = allRounds.filter((r) => r.quotationId === quotationId);
+    const latest = rounds.reduce((latest, cur) => {
+      const lv = getRoundSortValue(latest?.roundIdentifier || "Initial");
+      const cv = getRoundSortValue(cur.roundIdentifier);
+      return cv > lv ? cur : latest;
+    }, null);
+
+    return latest?.roundIdentifier === roundIdentifier;
+  };
+
+  // ======================
+  // FETCH QUOTATIONS
+  // ======================
   useEffect(() => {
     const fetchQuotationRounds = async () => {
       try {
         setLoading(true);
-        const allQuotationRounds = [];
+        setError(null);
 
-        mockQuotations.forEach((item) => {
-          const quotes = Array.isArray(item) ? item : [item];
-          quotes.forEach((q) => {
-            if (!q || !q.customer?.name || !q.quotationId) {
-              console.warn("Skipping incomplete quotation:", q);
-              return;
-            }
+        const response = await fetch(
+          "https://nlfs.in/erp/index.php/Nlf_Erp/list_quotation"
+        );
+        if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
 
-            const baseData = {
-              name: q.customer.name,
-              email: q.customer.email,
-              mobile: q.customer.mobile,
-              id: q.customer.id, // ✅ This becomes the client ID
-              quotationId: q.quotationId,
-              amount: q.amount,
-            };
+        const result = await response.json();
 
-            if (q.rounds && q.rounds.length > 0) {
-              q.rounds.forEach((round) => {
-                const isDraftRound = round.round === "";
-                const revisionIdentifier = isDraftRound ? "Initial" : round.round;
-                const fullQuotationId = isDraftRound
-                  ? q.quotationId
-                  : `${q.quotationId}-${round.round}`;
+        if (result.status && result.success === "1" && Array.isArray(result.data)) {
+          const allQuotationRounds = [];
 
-                allQuotationRounds.push({
-                  ...baseData,
-                  key: `${q.quotationId}-${revisionIdentifier}`,
-                  fullQuotationId,
-                  roundIdentifier: revisionIdentifier,
-                  roundStatus: isDraftRound ? "draft" : round.status,
-                  roundDate: round.date,
-                });
-              });
-            } else {
-              allQuotationRounds.push({
-                ...baseData,
-                key: `${q.quotationId}-initial`,
-                fullQuotationId: q.quotationId,
-                roundIdentifier: "Initial",
-                roundStatus: "draft",
-                roundDate: q.customer.date || "",
-              });
-            }
+          result.data.forEach((quote) => {
+            if (!quote || !quote.quote_id) return;
+
+            const formattedQuoteNo = formatQuoteNumber(quote.quote_no);
+            const displayStatus = getDisplayStatus(
+              quote.status,
+              quote.admin_approval
+            );
+
+            allQuotationRounds.push({
+              key: `${quote.quote_id}-Initial`,
+              quotationId: quote.quote_id,
+              fullQuotationId: formattedQuoteNo,
+              name: quote.name,
+              email: quote.email || "",
+              mobile: quote.mobile || "",
+              amount: quote.total || "0",
+              city: quote.city || "",
+              branch: quote.branch || "",
+              product: quote.product || "",
+              description: quote.desc || "",
+              roundIdentifier: "Initial",
+              roundStatus: displayStatus,
+              roundDate: quote.date || "",
+              revise: quote.revise || "Original",
+              // ⭐ ADDED: store approvals from API
+              rateApproval: quote.rate_approval || "",
+              adminApproval: quote.admin_approval || "",
+            });
           });
-        });
 
-        // Group and sort rounds (latest first per quotation)
-        const groupedRounds = new Map();
-        allQuotationRounds.forEach((round) => {
-          const id = round.quotationId;
-          if (!groupedRounds.has(id)) {
-            groupedRounds.set(id, []);
-          }
-          groupedRounds.get(id).push(round);
-        });
-
-        let finalSortedRounds = [];
-        groupedRounds.forEach((roundsArray) => {
-          roundsArray.sort((a, b) => {
-            const valA = getRoundSortValue(a.roundIdentifier);
-            const valB = getRoundSortValue(b.roundIdentifier);
-            return valB - valA;
-          });
-          finalSortedRounds.push(...roundsArray);
-        });
-
-        setQuotationRounds(finalSortedRounds);
-      } catch (error) {
-        console.error("Error fetching quotation rounds:", error);
+          setQuotationRounds(allQuotationRounds);
+        } else {
+          throw new Error(result.message || "Failed to fetch quotations");
+        }
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -635,272 +272,312 @@ const handleClosePDFClientPO = () => {
     fetchQuotationRounds();
   }, []);
 
-  const handleConvertToPO = (quotationId, roundIdentifier) => {
-    const roundPart = roundIdentifier === "Initial" ? "initial" : roundIdentifier;
-    navigate(`/po/new/${quotationId}/${roundPart}`);
-  };
+  // ======================
+  // FETCH PO LIST (real data)
+  // ======================
+  useEffect(() => {
+    const fetchPoList = async () => {
+      try {
+        setPoLoading(true);
+        setError(null);
 
-  const handleCreateRevision = (quotationId, roundIdentifier) => {
-    navigate(`/quotations/${quotationId}/new-revision`);
-  };
+        const response = await fetch(
+          "https://nlfs.in/erp/index.php/Api/list_po",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ keyword: "" }),
+          }
+        );
 
-  // Filter & paginate
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.status === "true" && result.success === "1" && Array.isArray(result.data)) {
+          setPoList(result.data);
+        } else {
+          throw new Error(result.message || "Failed to fetch PO list");
+        }
+      } catch (err) {
+        console.error("Error fetching PO list:", err);
+        setError(err.message || "Failed to fetch PO list");
+      } finally {
+        setPoLoading(false);
+      }
+    };
+
+    fetchPoList();
+  }, [location.key]); // This will re-fetch when the location key changes (navigation)
+
+  // ======================
+  // Pagination + Search
+  // ======================
   const filteredRounds = quotationRounds.filter((r) => {
     const term = searchTerm.toLowerCase();
-    const valuesToSearch = `${r.name} ${r.quotationId} ${r.fullQuotationId} ${r.roundIdentifier} ${r.roundDate} ${r.roundStatus}`.toLowerCase();
-    return valuesToSearch.includes(term);
+    const source = `${r.name} ${r.fullQuotationId} ${r.quotationId}`.toLowerCase();
+    return source.includes(term);
   });
 
-  const indexOfLastRound = currentPage * roundsPerPage;
-  const indexOfFirstRound = indexOfLastRound - roundsPerPage;
-  const currentRounds = filteredRounds.slice(indexOfFirstRound, indexOfLastRound);
+  const indexLast = currentPage * roundsPerPage;
+  const indexFirst = indexLast - roundsPerPage;
+  const currentRounds = filteredRounds.slice(indexFirst, indexLast);
   const totalPages = Math.ceil(filteredRounds.length / roundsPerPage);
 
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const paginate = (page) => setCurrentPage(page);
+
+  // ============================
+  // RENDER
+  // ============================
 
   return (
     <Container fluid>
       <Row>
         <Col md="12">
           <Card className="strpied-tabled-with-hover">
-            <Card.Header
-              style={{
-                backgroundColor: "#fff",
-                borderBottom: "none",
-              }}
-            >
+            <Card.Header style={{ backgroundColor: "#fff", borderBottom: "none" }}>
               <Row className="align-items-center">
-                <Col className="d-flex align-items-center">
+                <Col>
                   <Card.Title style={{ marginTop: "2rem", fontWeight: "700" }}>
                     Quotation Rounds
                   </Card.Title>
                 </Col>
-                <Col className="d-flex justify-content-end align-items-center gap-2">
+
+                <Col className="d-flex justify-content-end gap-2">
                   <Form.Control
                     type="text"
-                    placeholder="Search by Name, Quote No, Revision, Status..."
+                    placeholder="Search by Name, Quote No, revise, Status..."
                     value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="custom-searchbar-input nav-search"
                     style={{ width: "20vw" }}
                   />
-                  <Button as={Link} to="/new-quotation" className="add-customer-btn btn btn-primary">
-                    + Create Quotation
+
+                  <Button
+                    onClick={handleCreateNewQuotation}
+                    className="add-customer-btn btn btn-primary"
+                    disabled={fetchingQuoteNo}
+                  >
+                    {fetchingQuoteNo ? "Loading..." : "+ Create Quotation"}
                   </Button>
                 </Col>
               </Row>
             </Card.Header>
 
-            <Card.Body className="table-full-width table-responsive">
-              <div className="table-responsive">
-                <table className="table table-striped table-hover">
-                  <thead>
-                    <tr>
-                      <th>Sr. no</th>
-                      <th>Name</th>
-                      <th>Quote No</th>
-                      <th>Revision</th>
-                      <th>Round Date</th>
-                      <th>Status</th>
-                      <th style={{ minWidth: "120px" }}>PO Action</th>
-                      <th style={{ minWidth: "180px" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan="8" className="text-center p-4">
-                          Loading quotations...
-                        </td>
-                      </tr>
-                    ) : currentRounds.length > 0 ? (
-                      currentRounds.map((round, index) => {
-                        const isLatest = isLatestIteration(
-                          round.quotationId,
-                          round.roundIdentifier,
-                          quotationRounds
-                        );
-                        const showCreateRevision = isLatest && round.roundStatus === "revise";
-
-                        return (
-                          <tr key={round.key}>
-                            <td>{indexOfFirstRound + index + 1}</td>
-                            <td>{round.name}</td>
-                            <td>{round.fullQuotationId}</td>
-                            <td>
-                              {round.roundIdentifier && round.roundIdentifier !== "Initial"
-                                ? round.roundIdentifier
-                                : "-"}
-                            </td>
-                            <td>{round.roundDate || "-"}</td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  round.roundStatus === "accepted"
-                                    ? "bg-success"
-                                    : round.roundStatus === "revise"
-                                    ? "bg-warning"
-                                    : round.roundStatus === "pending"
-                                    ? "bg-info"
-                                    : round.roundStatus === "draft"
-                                    ? "bg-secondary"
-                                    : "bg-secondary"
-                                }`}
-                              >
-                                {round.roundStatus || "draft"}
-                              </span>
-                            </td>
-
-                            {/* Convert to PO Button */}
-                            <td data-label="PO Action">
-                              {round.roundStatus === "accepted" && (
-                                <Button
-                                  variant="success"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleConvertToPO(round.quotationId, round.roundIdentifier)
-                                  }
-                                  style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
-                                >
-                                  Convert to PO
-                                </Button>
-                              )}
-                            </td>
-
-                            {/* Actions Column */}
-                            <td data-label="Actions">
-                              <div className="table-actions d-flex gap-3">
-                                {/* View Quotation or Create Revision */}
-                                {showCreateRevision ? (
-                                  <button
-                                    className="btn btn-sm btn-warning"
-                                    style={{ padding: "0.3rem 0.5rem" }}
-                                    onClick={() =>
-                                      handleCreateRevision(round.quotationId, round.roundIdentifier)
-                                    }
-                                    title="Create Revision"
-                                  >
-                                    <FaEdit size={15} />
-                                  </button>
-                                ) : (
-                                  <Link
-                                    to={`/quotations/${round.quotationId}/${round.roundIdentifier || "initial"}?view=true`}
-                                  >
-                                    <button
-                                      className="buttonEye"
-                                      style={{ color: "white" }}
-                                      title="View Quotation"
-                                    >
-                                      <FaEye size={15} />
-                                    </button>
-                                  </Link>
-                                )}
-
-                              
-
-                                {/* Download PDF Button */}
-                               {round.roundStatus === 'accepted' ? (
-  <>
-
-      <button
-      className="btn btn-sm btn-outline-secondary"
-      style={{ color: "red" }}
-      title="Preview & Download Quotation"
-      onClick={(e) => {
-        e.stopPropagation();
-        handleShowPDFPreview(round);
-      }}
-    >
-      <FaDownload size={15} />
-    </button>
-   <button
-  className="btn btn-sm btn-dark text-white"
-  title={poData.some(p => 
-    p.quotationId === round.quotationId && 
-    p.quotationRound === (round.roundIdentifier === 'Initial' ? '' : round.roundIdentifier)
-  ) 
-    ? "Preview Purchase Order (PDF)" 
-    : "View Client Details"}
-  onClick={(e) => {
-    e.stopPropagation();
-    handleShowPDFClientPO(round.quotationId, round.roundIdentifier);
-  }}
->
-  <FaUser size={15} /> 
-</button>
-
-
-  
-  </>
-) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan="8" className="text-center p-4">
-                          No quotations found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card.Body>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="d-flex justify-content-center p-3">
-                <Pagination>
-                  <Pagination.First
-                    onClick={() => paginate(1)}
-                    disabled={currentPage === 1}
-                  />
-                  <Pagination.Prev
-                    onClick={() => paginate(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  />
-                  {Array.from({ length: totalPages }, (_, i) => (
-                    <Pagination.Item
-                      key={i + 1}
-                      active={i + 1 === currentPage}
-                      onClick={() => paginate(i + 1)}
-                    >
-                      {i + 1}
-                    </Pagination.Item>
-                  ))}
-                  <Pagination.Next
-                    onClick={() => paginate(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                  />
-                  <Pagination.Last
-                    onClick={() => paginate(totalPages)}
-                    disabled={currentPage === totalPages}
-                  />
-                </Pagination>
-              </div>
+            {/* ERROR ALERT */}
+            {error && (
+              <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                {error}
+              </Alert>
             )}
+
+            {/* TABLE */}
+            <Card.Body className="table-full-width table-responsive">
+              <table className="table table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th>Sr. no</th>
+                    <th>Name</th>
+                    <th>Quote No</th>
+                    <th>revise</th>
+                    <th>Round Date</th>
+                    <th>Status</th>
+                    <th style={{ minWidth: "140px" }}>PO Action</th>
+                    <th style={{ minWidth: "230px" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="8" className="text-center p-4">
+                        Loading quotations...
+                      </td>
+                    </tr>
+                  ) : currentRounds.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="text-center p-4">
+                        No quotations found.
+                      </td>
+                    </tr>
+                  ) : (
+                    currentRounds.map((round, index) => {
+                      const showEdit = round.roundStatus === "draft";
+                      const showView = round.roundStatus !== "draft";
+
+                      // ⭐ NEW FLAGS from stored values
+                      const isRateApproved = isApprovedValue(round.rateApproval);
+                      const isAdminApproved = isApprovedValue(round.adminApproval);
+
+                      // ✅ FIX: Check for PO using the fullQuotationId, not the numeric ID
+                      const poForQuote = poList.find(
+                        (po) => String(po.quote_id) === String(round.fullQuotationId) // KEY CHANGE HERE
+                      );
+                      const hasClientPO = !!poForQuote;
+
+                      // === DEBUGGING LOGS (Updated for clarity) ===
+                      console.log(`--- Checking Quote: ${round.fullQuotationId} (ID: ${round.quotationId}) ---`);
+                      console.log(`Rate Approved?`, isRateApproved, "Admin Approved?", isAdminApproved);
+                      console.log(`All available PO quote_ids:`, poList.map(po => po.quote_id));
+                      console.log(`Found matching PO:`, poForQuote);
+                      console.log(`Has Client PO?`, hasClientPO);
+                      // === END DEBUGGING LOGS ===
+
+                      return (
+                        <tr key={round.key}>
+                          <td>{indexFirst + index + 1}</td>
+                          <td>{round.name}</td>
+                          <td>{round.fullQuotationId}</td>
+                          <td>{round.revise === "Original" ? "-" : round.revise}</td>
+                          <td>{round.roundDate || "-"}</td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                round.roundStatus === "accepted"
+                                  ? "bg-success"
+                                  : round.roundStatus === "revise"
+                                  ? "bg-warning"
+                                  : round.roundStatus === "pending"
+                                  ? "bg-info"
+                                  : "bg-secondary"
+                              }`}
+                            >
+                              {round.roundStatus}
+                            </span>
+                          </td>
+
+                          {/* ✅ PO Action: Convert to PO or show that PO is created */}
+                          <td>
+                            {round.roundStatus === "accepted" && !hasClientPO && (
+                              <Button
+                                size="sm"
+                                variant="success"
+                                onClick={() =>
+                                  navigate(`/po/new/${round.quotationId}/initial`)
+                                }
+                              >
+                                Convert to PO
+                              </Button>
+                            )}
+
+                            {round.roundStatus === "accepted" && hasClientPO && (
+                              <span className="badge bg-success">PO Created</span>
+                            )}
+                          </td>
+
+                          {/* ACTIONS (Edit/View, Download Quote, Download PO) */}
+                          <td className="d-flex gap-2">
+                            {showEdit ? (
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() =>
+                                  navigate(`/quotations/${round.quotationId}/edit`)
+                                }
+                              >
+                                <FaEdit size={15} />
+                              </button>
+                            ) : (
+                              <Link
+                                to={`/quotations/${round.quotationId}/initial?view=true`}
+                              >
+                                <button
+                                  className="buttonEye"
+                                  style={{ color: "white" }}
+                                >
+                                  <FaEye size={15} />
+                                </button>
+                              </Link>
+                            )}
+
+                            {/* ⭐ STEP 1: show QUOTE PDF download when RATE is approved */}
+                            {isRateApproved && (
+                              <button
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() =>
+                                  handleShowPDFPreview(round.quotationId)
+                                }
+                                style={{ color: "red" }}
+                              >
+                                <FaDownload size={15} />
+                              </button>
+                            )}
+
+                            {/* ✅ DOWNLOAD PO – only if PO exists AND quotation accepted */}
+                            {round.roundStatus === "accepted" && hasClientPO && (
+                              <button
+                                className="btn btn-sm btn-dark text-white"
+                                onClick={() =>
+                                  handleShowPDFClientPO(round.quotationId)
+                                }
+                                title="Download Client PO"
+                              >
+                                <FaUser size={15} className="me-1" />
+                                Download PO
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-center p-3">
+                  <Pagination>
+                    <Pagination.First
+                      onClick={() => paginate(1)}
+                      disabled={currentPage === 1}
+                    />
+                    <Pagination.Prev
+                      onClick={() => paginate(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    />
+
+                    {Array.from({ length: totalPages }, (_, i) => (
+                      <Pagination.Item
+                        key={i + 1}
+                        active={currentPage === i + 1}
+                        onClick={() => paginate(i + 1)}
+                      >
+                        {i + 1}
+                      </Pagination.Item>
+                    ))}
+
+                    <Pagination.Next
+                      onClick={() => paginate(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    />
+                    <Pagination.Last
+                      onClick={() => paginate(totalPages)}
+                      disabled={currentPage === totalPages}
+                    />
+                  </Pagination>
+                </div>
+              )}
+            </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      {/* PDF Preview Modal */}
+      {/* QUOTE PDF PREVIEW */}
       <PDFPreview
         show={showPDFPreview}
         onHide={handleClosePDFPreview}
-        quotationData={selectedQuotation}
+        quoteId={selectedQuoteId}
       />
 
+      {/* CLIENT PO PDF PREVIEW / DOWNLOAD */}
       <PDFClientPO
-  show={showPDFClientPO}
-  onHide={handleClosePDFClientPO}
-  poData={selectedPO}
-/>
+        show={showPDFClientPO}
+        onHide={handleClosePDFClientPO}
+        poData={selectedPO}
+      />
     </Container>
   );
 }
