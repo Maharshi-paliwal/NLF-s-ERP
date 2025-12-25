@@ -1,5 +1,5 @@
-// src/BranchMaster.jsx
-import React, { useState, useEffect, useMemo } from "react";
+// src/Branchmaster.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Container,
   Row,
@@ -8,50 +8,51 @@ import {
   Form,
   Button,
   Table,
-  Pagination, // ⭐ ADDED
+  Pagination,
+  Image,
 } from "react-bootstrap";
-import { FaPlus, FaSearch, FaTrash } from "react-icons/fa";
+import { FaPlus, FaSearch, FaTrash, FaUpload } from "react-icons/fa";
 import toast from "react-hot-toast";
 
 const ERP_API_BASE = "https://nlfs.in/erp/index.php/Erp";
-// delete_branch is under /Api according to your docs
 const ERP_DELETE_BASE = "https://nlfs.in/erp/index.php/Api";
 
 const Branchmaster = () => {
-  const [branchSearch, setBranchSearch] = useState("");
-  const [branchName, setBranchName] = useState("");
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
 
-  // ⭐ PAGINATION STATE
+  const [branchSearch, setBranchSearch] = useState("");
+  const [branchName, setBranchName] = useState("");
+
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // ------------ FETCH BRANCH LIST (NO SEARCH PARAM) ------------
+  const [gstNo, setGstNo] = useState("");
+const [address, setAddress] = useState("");
+
+  const fileInputRefs = useRef({});
+
+  // ---------------- FETCH ----------------
   const fetchBranches = async () => {
     setLoading(true);
     try {
       const res = await fetch(`${ERP_API_BASE}/branch_list`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}), // no search → full list
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
-
       const data = await res.json();
-      console.log("branch_list response:", data);
 
       if (data.status && data.success === "1") {
-        // data.data = [{ id: "1", branch_name: "Nagpur" }, ...]
         setBranches(data.data || []);
       } else {
-        toast.error(data.message || "Failed to fetch branches.");
+        toast.error(data.message || "Failed to fetch branches");
       }
-    } catch (err) {
-      console.error("Error fetching branches:", err);
-      toast.error("Something went wrong while loading branches.");
+    } catch {
+      toast.error("Error loading branches");
     } finally {
       setLoading(false);
     }
@@ -61,254 +62,233 @@ const Branchmaster = () => {
     fetchBranches();
   }, []);
 
-  // ------------ FRONTEND SEARCH/FILTER ------------
-  const filteredBranches = useMemo(() => {
-    if (!branchSearch) return branches;
-    const s = branchSearch.toLowerCase();
-    return branches.filter((b) =>
-      b.branch_name?.toLowerCase().includes(s)
-    );
-  }, [branchSearch, branches]);
+  // ---------------- ADD (FORMDATA EXACT MATCH) ----------------
+ const handleAddBranch = async (e) => {
+  e.preventDefault();
 
-  // ⭐ PAGINATION BASED ON filteredBranches
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentBranches = filteredBranches.slice(
-    indexOfFirstItem,
-    indexOfLastItem
-  );
-  const totalPages = Math.ceil(filteredBranches.length / itemsPerPage);
+  if (!branchName.trim()) {
+    toast.error("Branch name is required");
+    return;
+  }
 
-  const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
+  const fd = new FormData();
+  fd.append("branch_name", branchName.trim());
 
-  // ------------ ADD BRANCH (API) ------------
-  const handleAddBranch = async (e) => {
-    e.preventDefault();
+  // ✅ NEW FIELDS
+  fd.append("gst_no", gstNo.trim());
+  fd.append("address", address.trim());
 
-    if (!branchName.trim()) {
-      toast.error("Please enter a branch name.");
+  if (selectedFile) {
+    fd.append("header_image", selectedFile);
+  }
+
+  try {
+    const res = await fetch(`${ERP_API_BASE}/add_branch`, {
+      method: "POST",
+      body: fd,
+    });
+
+    const data = await res.json();
+
+    if (!data.status) {
+      toast.error(data.message || "Failed to add branch");
       return;
     }
 
-    try {
-      const res = await fetch(`${ERP_API_BASE}/add_branch`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          branch_name: branchName.trim(),
-        }),
-      });
+    toast.success(data.message || "Branch added successfully");
 
-      const data = await res.json();
-      console.log("add_branch response:", data);
+    // reset form
+    setBranchName("");
+    setGstNo("");
+    setAddress("");
+    setSelectedFile(null);
+    setPreview(null);
 
-      if (data.status && data.success === "1") {
-        toast.success(data.message || "Branch added successfully.");
-        setBranchName("");
-        await fetchBranches(); // refresh list to include the new branch
-        setCurrentPage(1); // ⭐ Go back to first page
-      } else {
-        toast.error(data.message || "Failed to add branch.");
-      }
-    } catch (err) {
-      console.error("Error adding branch:", err);
-      toast.error("Something went wrong while adding branch.");
-    }
-  };
+    await fetchBranches();
+    setCurrentPage(1);
+  } catch {
+    toast.error("Something went wrong while adding branch");
+  }
+};
 
-  // ------------ DELETE BRANCH (API) ------------
-  const handleDeleteBranch = async (id) => {
-    if (!id) return;
 
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this branch?"
-    );
-    if (!confirmDelete) return;
+
+  // ---------------- DELETE ----------------
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this branch?")) return;
 
     try {
-      setDeletingId(id);
-
       const res = await fetch(`${ERP_DELETE_BASE}/delete_branch`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-
       const data = await res.json();
-      console.log("delete_branch response:", data);
 
-      if (
-        (data.status === true || data.status === "true") &&
-        data.success === "1"
-      ) {
-        toast.success(data.message || "Branch deleted successfully.");
-        // remove from current state without refetch
-        setBranches((prev) =>
-          prev.filter((b) => String(b.id) !== String(id))
-        );
+      if (data.status && data.success === "1") {
+        toast.success("Branch deleted");
+        setBranches((prev) => prev.filter((b) => b.id !== id));
       } else {
-        toast.error(data.message || "Failed to delete branch.");
+        toast.error(data.message || "Delete failed");
       }
-    } catch (err) {
-      console.error("Error deleting branch:", err);
-      toast.error("Something went wrong while deleting branch.");
-    } finally {
-      setDeletingId(null);
+    } catch {
+      toast.error("Delete error");
     }
   };
 
+  // ---------------- FILE HANDLER ----------------
+  const onFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setPreview(URL.createObjectURL(file));
+  };
+
+  // ---------------- FILTER + PAGINATION ----------------
+  const filtered = useMemo(() => {
+    if (!branchSearch) return branches;
+    return branches.filter((b) =>
+      b.branch_name?.toLowerCase().includes(branchSearch.toLowerCase())
+    );
+  }, [branchSearch, branches]);
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const current = filtered.slice(start, start + itemsPerPage);
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+
+  // ---------------- RENDER ----------------
   return (
     <Container fluid>
-      <Row>
-        <Col md="12">
-          <Card className="strpied-tabled-with-hover">
-            <Card.Header style={{ backgroundColor: "#fff", borderBottom: "none" }}>
-              <Row className="align-items-center">
-                <Col>
-                  <Card.Title
-                    style={{
-                      marginTop: "2rem",
-                      fontWeight: "700",
-                    }}
-                  >
-                    Branch
-                  </Card.Title>
-                </Col>
+      <Card>
+        <Card.Header>
+          <Row className="align-items-center">
+            <Col><h4 className="fw-bold mt-3">Branch</h4></Col>
+            <Col className="text-end">
+              <Form.Control
+                placeholder="Search branch..."
+                value={branchSearch}
+                onChange={(e) => {
+                  setBranchSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{ width: 300, display: "inline-block" }}
+              />
+            </Col>
+          </Row>
+        </Card.Header>
 
-                {/* Search (frontend) */}
-                <Col className="d-flex justify-content-end align-items-center gap-2">
-                  <div className="position-relative">
-                    <Form.Control
-                      type="text"
-                      placeholder="Search branch..."
-                      value={branchSearch}
-                      onChange={(e) => {
-                        setBranchSearch(e.target.value);
-                        setCurrentPage(1); // ⭐ Reset to first page on search
-                      }}
-                      style={{ width: "20vw", paddingRight: "35px" }}
-                    />
-                    <FaSearch
-                      className="position-absolute"
-                      style={{
-                        right: "10px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#999",
-                      }}
-                    />
-                  </div>
-                </Col>
-              </Row>
-            </Card.Header>
+        <Card.Body>
+          {/* ADD FORM */}
+         <Form onSubmit={handleAddBranch} className="mb-4">
+  <Row className="g-2 align-items-center">
+    <Col md={3}>
+      <Form.Control
+        placeholder="Branch name"
+        value={branchName}
+        onChange={(e) => setBranchName(e.target.value)}
+      />
+    </Col>
 
-            <Card.Body>
-              {/* Add Branch */}
-              <Form onSubmit={handleAddBranch} className="mb-3 d-flex gap-2">
-                <Form.Control
-                  type="text"
-                  placeholder="Enter new branch name"
-                  value={branchName}
-                  onChange={(e) => setBranchName(e.target.value)}
-                />
-                <Button
-                  type="submit"
-                  className="btn btn-primary add-customer-btn"
+    <Col md={2}>
+      <Form.Control
+        placeholder="GST No"
+        value={gstNo}
+        onChange={(e) => setGstNo(e.target.value)}
+      />
+    </Col>
+
+    <Col md={3}>
+      <Form.Control
+        placeholder="Address"
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+      />
+    </Col>
+
+    <Col md={2}>
+      <Form.Control type="file" accept="image/*" onChange={onFileChange} />
+    </Col>
+
+    <Col md={1}>
+      <Button type="submit">
+        <FaPlus /> Add
+      </Button>
+    </Col>
+
+    {preview && (
+      <Col md={1}>
+        <img
+          src={preview}
+          alt="preview"
+          style={{ width: 80, height: 40, objectFit: "cover" }}
+        />
+      </Col>
+    )}
+  </Row>
+</Form>
+
+
+          {/* TABLE */}
+          <Table striped hover>
+           <thead>
+  <tr>
+    <th>Sr no</th>
+    <th>Branch</th>
+    <th>GST No</th>
+    <th>Address</th>
+    <th>Header Image</th>
+    <th>Action</th>
+  </tr>
+</thead>
+
+            <tbody>
+  {current.map((b, i) => (
+    <tr key={b.id}>
+      <td>{start + i + 1}</td>
+      <td>{b.branch_name}</td>
+      <td>{b.gst_no || "—"}</td>
+      <td style={{ maxWidth: 200 }}>
+        {b.address || "—"}
+      </td>
+      <td>
+        {b.header_image ? (
+          <Image
+            src={b.header_image}
+            thumbnail
+            style={{ width: 120, height: 60, objectFit: "cover" }}
+          />
+        ) : "—"}
+      </td>
+      <td>
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => handleDelete(b.id)}
+        >
+          <FaTrash />
+        </Button>
+      </td>
+    </tr>
+  ))}
+</tbody>
+
+          </Table>
+
+          {totalPages > 1 && (
+            <Pagination className="justify-content-center">
+              {[...Array(totalPages)].map((_, i) => (
+                <Pagination.Item
+                  key={i}
+                  active={currentPage === i + 1}
+                  onClick={() => setCurrentPage(i + 1)}
                 >
-                  <FaPlus size={14} className="me-1" /> Add Branch
-                </Button>
-              </Form>
-
-              {/* Branch List */}
-              <div className="table-full-width table-responsive">
-                {loading ? (
-                  <p className="text-center">Loading branches...</p>
-                ) : (
-                  <>
-                    <Table className="table table-striped table-hover">
-                      <thead>
-                        <tr>
-                          <th>Sr. No.</th>
-                          <th>Branch Name</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentBranches.length > 0 ? (
-                          currentBranches.map((branch, index) => (
-                            <tr key={branch.id || index}>
-                              {/* ⭐ Sr. No. with pagination offset */}
-                              <td>{indexOfFirstItem + index + 1}</td>
-                              <td>{branch.branch_name}</td>
-                              <td>
-                                <Button
-                                  variant="danger"
-                                  size="sm"
-                                  onClick={() => handleDeleteBranch(branch.id)}
-                                  disabled={deletingId === branch.id}
-                                >
-                                  <FaTrash />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan="3" className="text-center">
-                              No branches found.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </Table>
-
-                    {/* ⭐ Pagination Controls */}
-                    {totalPages > 1 && (
-                      <div className="d-flex justify-content-center p-3">
-                        <Pagination>
-                          <Pagination.First
-                            onClick={() => handlePageChange(1)}
-                            disabled={currentPage === 1}
-                          />
-                          <Pagination.Prev
-                            onClick={() =>
-                              handlePageChange(currentPage - 1)
-                            }
-                            disabled={currentPage === 1}
-                          />
-                          {Array.from({ length: totalPages }, (_, i) => (
-                            <Pagination.Item
-                              key={i + 1}
-                              active={i + 1 === currentPage}
-                              onClick={() => handlePageChange(i + 1)}
-                            >
-                              {i + 1}
-                            </Pagination.Item>
-                          ))}
-                          <Pagination.Next
-                            onClick={() =>
-                              handlePageChange(currentPage + 1)
-                            }
-                            disabled={currentPage === totalPages}
-                          />
-                          <Pagination.Last
-                            onClick={() => handlePageChange(totalPages)}
-                            disabled={currentPage === totalPages}
-                          />
-                        </Pagination>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+                  {i + 1}
+                </Pagination.Item>
+              ))}
+            </Pagination>
+          )}
+        </Card.Body>
+      </Card>
     </Container>
   );
 };

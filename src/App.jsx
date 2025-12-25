@@ -1,7 +1,7 @@
 // src/App.jsx
 import { Container } from "react-bootstrap";
 import { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginForm from "./LoginForm";
 
 import Sidebar from "./components/Sidebar";
@@ -72,6 +72,11 @@ import SubProduct from "./master/Subproduct";
 import Product from "./master/Product";
 import Brand from "./master/Brand";
 import QuotesBackoffice from "./pages/QuotesBackoffice";
+import Rate from "./master/Rate";
+import ProductMaster from "./master/ProductMaster";
+import ViewWorkOrder from "./forms/ViewWorkOrder";
+import Signature from "./master/Signature";
+import VendorMaster from "./master/Vendor";
 
 // 🔐 Helper: Check if user is "logged in"
 const isAuthenticated = () => {
@@ -173,8 +178,13 @@ function App() {
                 <Route path="/productmaster" element={<Product />} />
                 <Route path="/brandmaster" element={<Brand />} />
                 <Route path="/subproductmaster" element={<SubProduct />} />
+                <Route path="/ratemaster" element={<Rate/>} />
                 <Route path="/dashboard" element={<Dashboard />} /> 
+                <Route path="/combinedmaster" element={<ProductMaster />} /> 
                 <Route path="/salesdashboard" element={<SalesDashboard />} />
+                <Route path="/signature" element={<Signature />} />
+                <Route path="/vendormaster" element={<VendorMaster />} />
+                <Route path="/po/new/:quotationId" element={<PoForm />} />
                 {/*-----------------Master End----------------*/}
                 
                 <Route path="/new-customer" element={<NewCustomer />} />
@@ -197,29 +207,31 @@ function App() {
                 <Route path="/sales-details/:id" element={<SalesDetails />} />
                 <Route path="/sales-details/:clientName" element={<SalesDetails />} />
                 <Route path="/newlead" element={<NewLead />} />
-                {/*Qotes + W.O  module*/}
+
+                {/* Quotes + W.O module */}
+                {/* NEW: Create Work Order from approved quotation (matches ClientLead navigation) */}
+                <Route path="/workorder/new/:quoteId" element={<WorkOrderForm />} />
+                {/* Keep existing routes for backward compatibility */}
                 <Route path="/workorderform" element={<WorkOrderForm />} />
-                <Route path="/quotesbackoffice" element={<QuotesBackoffice />} />
-                <Route path="/clients" element={<ClientLead />} />
-                <Route path="/requisitionForm" element={<RequisitionForm />} />
-                <Route path="/accounts" element={<Accounts />} />
-                <Route path="quotations/records/:quotationId" element={<RecordQuotations />} />
-                <Route
-                  path="/quotations/:quotationId/:roundIdentifier"
-                  element={<NewQuotation />}
-                />
-                <Route path="/view-leads/:id" element={<ViewLeads />} />
-                <Route path="/view-leads/:projectName" element={<ViewLeads />} />
-                <Route path="/create-revision/:quotationId" element={<NewQuotation />} />
-
-
-                <Route path="/admin-approval" element={<AdminApproval />} />
-                <Route path="/workorder" element={<WorkOrder />} />
                 <Route path="/workorderform/:workOrderId" element={<WorkOrderForm />} />
                 <Route path="/workorderformaccounts/:workOrderId" element={<WorkOrderForm />} />
                 <Route path="/designworkorderform/:workOrderId" element={<WorkOrderForm />} />
                 <Route path="/storeworkorderform/:workOrderId" element={<WorkOrderForm />} />
                 <Route path="/planworkorderform/:workOrderId" element={<WorkOrderForm />} />
+
+                <Route path="/quotesbackoffice" element={<QuotesBackoffice />} />
+                <Route path="/clients" element={<ClientLead />} />
+                <Route path="/requisitionForm" element={<RequisitionForm />} />
+                <Route path="/accounts" element={<Accounts />} />
+                <Route path="quotations/records/:quotationId" element={<RecordQuotations />} />
+                <Route path="/quotations/:quotationId/:roundIdentifier" element={<NewQuotation />} />
+                <Route path="/view-leads/:id" element={<ViewLeads />} />
+                <Route path="/view-leads/:projectName" element={<ViewLeads />} />
+                <Route path="/create-revision/:quotationId" element={<NewQuotation />} />
+
+                <Route path="/admin-approval" element={<AdminApproval />} />
+                <Route path="/workorderpage" element={<WorkOrder />} />
+                <Route path="/workorder/view/:workOrderId" element={<ViewWorkOrder />} />
 
                 {/* Module 2 */}
                 <Route path="/ordertable" element={<Ordertable />} />

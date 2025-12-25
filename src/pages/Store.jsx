@@ -1,5 +1,5 @@
-//store.jsx
-import React, { useState, useMemo } from "react";
+// Store.jsx – DESIGN-ALIGNED & API CORRECT
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Container,
   Row,
@@ -8,45 +8,72 @@ import {
   Form,
   Button,
   Table,
+  Spinner,
 } from "react-bootstrap";
-import { FaPlus, FaEye, FaSearch, FaStore , FaDownload} from "react-icons/fa";
+import { FaEye, FaSearch, FaStore, FaDownload } from "react-icons/fa";
+import { Link, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { workOrders } from "../data/mockdata";
-import PDFVendorPO from "../components/PDFVendorPO.jsx";
-import { poVendor } from "../data/mockdata"; // ✅ Import 
+import axios from "axios";
 
-const LEAD_STAGE_OPTIONS = ["civil", "finalised", "submit"];
+import PDFVendorPO from "../components/PDFVendorPO.jsx";
+import { poVendor } from "../data/mockdata";
+
+const API_BASE = "https://nlfs.in/erp/index.php/Api";
 
 export default function Store() {
   const [searchTerm, setSearchTerm] = useState("");
-    const [showPDFVendorPO, setShowPDFVendorPO] = useState(false);
-      const [selectedVendorPOs, setSelectedVendorPOs] = useState([]); // Changed to array (multiple POs per WO)
-    
-  const location = useLocation(); // ✅ Get current location (including state)
+  const [workOrders, setWorkOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Determine if this page was accessed from the Design section
-  const viewContext = location.state?.viewContext; // Will be "design" if coming from Design menu
+  const [showPDFVendorPO, setShowPDFVendorPO] = useState(false);
+  const [selectedVendorPOs, setSelectedVendorPOs] = useState([]);
 
-  // Filter work orders based on search term
+  const location = useLocation();
+  const viewContext = location.state?.viewContext;
+
+  /* ───────────────── Fetch Work Orders (SAME AS DESIGN) ───────────────── */
+  useEffect(() => {
+    const fetchWorkOrders = async () => {
+      try {
+        setLoading(true);
+        const res = await axios.get(`${API_BASE}/list_work_order`);
+
+        // ✅ IMPORTANT FIX: success is NUMBER, not string
+        if (res.data?.success === 1) {
+          setWorkOrders(res.data.data || []);
+        } else {
+          toast.error("Failed to fetch work orders");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error loading work orders");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWorkOrders();
+  }, []);
+
+  /* ───────────────── Search Filter (SAME AS DESIGN) ───────────────── */
   const filteredWorkOrders = useMemo(() => {
-    if (!searchTerm) {
-      return workOrders;
-    }
-    const lowercasedSearchTerm = searchTerm.toLowerCase();
+    if (!searchTerm) return workOrders;
+
+    const term = searchTerm.toLowerCase();
     return workOrders.filter(
       (wo) =>
-        wo.workOrderId.toLowerCase().includes(lowercasedSearchTerm) ||
-        wo.customerName.toLowerCase().includes(lowercasedSearchTerm) ||
-        wo.projectName.toLowerCase().includes(lowercasedSearchTerm)
+        wo.wo_no?.toLowerCase().includes(term) ||
+        wo.quto_id?.toLowerCase().includes(term)
     );
-  }, [searchTerm]);
+  }, [searchTerm, workOrders]);
 
-  const handleShowPDFVendorPO = (workOrderId) => {
-    // Find all Vendor POs for this Work Order
-    const matchedPOs = poVendor.filter((po) => po.workOrderId === workOrderId);
+  /* ───────────────── Vendor PO PDF (SAME AS DESIGN) ───────────────── */
+  const handleShowPDFVendorPO = (woNo) => {
+    const matchedPOs = poVendor.filter(
+      (po) => po.workOrderId === woNo
+    );
 
-    if (matchedPOs && matchedPOs.length > 0) {
+    if (matchedPOs.length) {
       setSelectedVendorPOs(matchedPOs);
       setShowPDFVendorPO(true);
     } else {
@@ -59,133 +86,129 @@ export default function Store() {
       <Row>
         <Col md="12">
           <Card className="strpied-tabled-with-hover">
-            <Card.Header style={{ backgroundColor: "#fff", borderBottom: "none" }}>
+            <Card.Header style={{ background: "#fff", borderBottom: "none" }}>
               <Row className="align-items-center">
                 <Col>
-                  <Card.Title style={{ marginTop: "2rem", fontWeight: "700" }}>
+                  <Card.Title style={{ marginTop: "2rem", fontWeight: 700 }}>
                     Store
                   </Card.Title>
                 </Col>
 
-                <Col className="d-flex justify-content-end align-items-center gap-2">
+                <Col className="d-flex justify-content-end">
                   <div className="position-relative">
                     <Form.Control
                       type="text"
-                      placeholder="Search W.O., Customer, Project..."
+                      placeholder="Search WO / Quotation..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       style={{ width: "20vw", paddingRight: "35px" }}
                     />
                     <FaSearch
                       className="position-absolute"
-                      style={{ right: "10px", top: "50%", transform: "translateY(-50%)", color: "#999" }}
+                      style={{
+                        right: "10px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "#999",
+                      }}
                     />
                   </div>
-                  {/* 
-                  <Button
-                    as={Link}
-                    to="/workorderform"
-                    className="btn btn-primary add-customer-btn"
-                    style={{ width: "15vw" }}
-                  >
-                    <FaPlus size={14} className="me-1" /> Add Work Order
-                  </Button> */}
                 </Col>
               </Row>
             </Card.Header>
 
             <Card.Body className="table-full-width table-responsive">
-              <Table className="table table-striped table-hover">
-                <thead>
-                  <tr>
-                    <th>Sr. No.</th>
-                    <th>Work Order No</th>
-                    <th>Client Name</th>
-                    <th>Project Name</th>
-                    <th>Architect</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredWorkOrders.map((workOrder, index) => (
-                    <tr key={workOrder.workOrderId}>
-                      <td>{index + 1}</td>
-                      <td>{workOrder.workOrderId}</td>
-                      <td>{workOrder.customerName}</td>
-                      <td>{workOrder.projectName}</td>
-                      <td>{workOrder.architect || "N/A"}</td>
-                      <td>
-                        <Button
-                          as={Link}
-                          to={`/storenewvendor`} variant="success"
-                          size="sm"
+              {loading ? (
+                <div className="text-center py-5">
+                  <Spinner animation="border" />
+                </div>
+              ) : (
+                <Table className="table table-striped table-hover">
+                  <thead>
+                    <tr>
+                      <th>Sr. No.</th>
+                      <th>Work Order No</th>
+                      <th>Quotation No</th>
+                      <th>Delivery Date</th>
+                      <th>Account Approval</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
 
-                          className="me-4"
-                          onClick={() => handleConvertToPO(round.quotationId, round.roundIdentifier)}
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
-                        >
-                          Vendor PO
-                        </Button>
+                  <tbody>
+                    {filteredWorkOrders.map((wo, index) => (
+                      <tr key={wo.work_id}>
+                        <td>{index + 1}</td>
+                        <td>{wo.wo_no}</td>
+                        <td>{wo.quto_id}</td>
+                        <td>{wo.exp_delivery_date}</td>
+                        <td>{wo.acc_approval}</td>
+
+                        <td>
+                          <Button
+                            as={Link}
+                            to="/storenewvendor"
+                            size="sm"
+                            variant="success"
+                            className="me-3"
+                          >
+                            Vendor PO
+                          </Button>
 
                           <button
-                                                  className="btn btn-sm btn-outline-dark text-danger me-3"
-                                                  title="Preview & Download Vendor PO"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleShowPDFVendorPO(workOrder.workOrderId);
-                                                  }}
-                                                >
-                                                  <FaDownload size={15} />
-                                                </button>
+                            className="btn btn-sm btn-outline-dark text-danger me-3"
+                            onClick={() => handleShowPDFVendorPO(wo.wo_no)}
+                          >
+                            <FaDownload size={14} />
+                          </button>
 
-                        <Button
-                          as={Link}
-                          to={`/storesubpage/${workOrder.workOrderId}`}
+                          <Button
+                            as={Link}
+                            to={`/storesubpage/${wo.work_id}`}
+                            className="buttonEye me-3"
+                            style={{ background: "#ed3131" }}
+                          >
+                            <FaStore />
+                          </Button>
 
-                          className="buttonEye me-3"
-                          style={{ background: "#ed3131" }}
-                          title="View Work Order Details"
-                        >
-                          <FaStore />
-                        </Button>
+                          <Button
+                            as={Link}
+                            to={
+                              viewContext === "store"
+                                ? `/store/${wo.work_id}`
+                                : `/storeworkorderform/${wo.work_id}`
+                            }
+                            state={{ viewContext: viewContext || "operations" }}
+                            className="buttonEye"
+                          >
+                            <FaEye />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
 
-                        <Button
-                          as={Link}
-                          to={
-                            viewContext === "design"
-                              ? `/design/${storeworkOrder.workOrderId}` // Destination if viewContext is "design"
-                              : `/storeworkorderform/${workOrder.workOrderId}` // Destination otherwise
-                          }
-                          state={{ viewContext: viewContext || "operations" }}
-                          className="buttonEye"
-                          title="View Work Order Details"
-                        >
-                          <FaEye />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredWorkOrders.length === 0 && (
-                    <tr>
-                      <td colSpan="6" className="text-center">
-                        No Work Orders found matching your search.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
+                    {!filteredWorkOrders.length && (
+                      <tr>
+                        <td colSpan="6" className="text-center">
+                          No Work Orders found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              )}
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-          <PDFVendorPO
+      <PDFVendorPO
         show={showPDFVendorPO}
         onHide={() => {
           setShowPDFVendorPO(false);
           setSelectedVendorPOs([]);
         }}
-        vendorPODataArray={selectedVendorPOs} // Pass array instead of single object
+        vendorPODataArray={selectedVendorPOs}
       />
     </Container>
   );

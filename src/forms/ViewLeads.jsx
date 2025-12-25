@@ -1,3 +1,4 @@
+// ViewLeads.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Card, Row, Col, Form, Container, Button } from "react-bootstrap";
@@ -12,47 +13,56 @@ const toInputDate = (value) => {
   if (!value) return "";
   const parts = value.split("-");
   if (parts.length !== 3) return "";
-
-  // already yyyy-mm-dd
-  if (parts[0].length === 4) return value;
-
-  // dd-mm-yyyy -> yyyy-mm-dd
+  if (parts[0].length === 4) return value; // already yyyy-mm-dd
   const [dd, mm, yyyy] = parts;
   return `${yyyy}-${mm}-${dd}`;
 };
 
+// Helper: normalize a stage just for comparison
+const normalizeStage = (s) => (s || "").toLowerCase().trim();
+
+// --- STATIC PRODUCT LIST (same as NewLead) ---
+const STATIC_PRODUCTS = [
+  { value: "ceiling_facade", label: "Ceiling / Facade" },
+  { value: "roofing", label: "Roofing" },
+  { value: "furnishing", label: "Furnishing" },
+  { value: "acoustics", label: "Acoustics" },
+  { value: "modular_furniture", label: "Modular Furniture" },
+];
+
 const ViewLeads = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-
   const isNew = !id || id === "new";
 
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
 
-  // 🔹 Stage list from ERP
+  // masters
   const [stageOptions, setStageOptions] = useState([]);
   const [stageLoading, setStageLoading] = useState(false);
 
-  // 🔹 Product list from master (Api/list_mst_product)
   const [productOptions, setProductOptions] = useState([]);
   const [productLoading, setProductLoading] = useState(false);
 
-  // 🔹 Branch list from ERP (branch_list)
   const [branchOptions, setBranchOptions] = useState([]);
   const [branchLoading, setBranchLoading] = useState(false);
 
-  // 🔹 Salesperson list from ERP (sale_person_list)
   const [salespersonOptions, setSalespersonOptions] = useState([]);
   const [salespersonLoading, setSalespersonLoading] = useState(false);
 
-  // 🔹 Store the RAW product value from backend temporarily
-  const [rawProductValue, setRawProductValue] = useState("");
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [departmentLoading, setDepartmentLoading] = useState(false);
 
-  // 🔹 Original stage to enforce transition rules
   const [originalStage, setOriginalStage] = useState("");
 
-  // form state - product stores prod_id
+  // Create a map of stage names to their order in the progression
+  const [stageOrderMap, setStageOrderMap] = useState({});
+  // Track if we have a "lost" stage in our options
+  const [lostStageValue, setLostStageValue] = useState("");
+
+  // form state - product standardized to store either static value (eg "modular_furniture")
+  // or fallback prod_id/raw value when it doesn't match static list.
   const [formData, setFormData] = useState({
     projectName: "",
     architectName: "",
@@ -60,37 +70,32 @@ const ViewLeads = () => {
     email: "",
     contractor: "",
     department: "",
-    salespersonName: "",
+    salespersonId: "",
     stage: "",
     remarks: "",
     visitDate: "",
     nextVisitDate: "",
     additionalNotes: "",
     officeBranch: "",
-    product: "", // Changed from material to product
+    product: "", // static product value OR prod_id/raw fallback
   });
 
-  // ---------- FETCH STAGE MASTER LIST ----------
+  // ---------- FETCH FUNCTIONS (masters) ----------
   const fetchStages = async () => {
     setStageLoading(true);
     try {
       const fd = new FormData();
-      const res = await fetch(`${API_BASE}/stage_list`, {
-        method: "POST",
-        body: fd,
-      });
-
+      const res = await fetch(`${API_BASE}/stage_list`, { method: "POST", body: fd });
       const data = await res.json();
-      console.log("stage_list response (ViewLeads):", data);
-
-      if (
-        (data.status === true || data.status === "true") &&
-        data.success === "1"
-      ) {
-        setStageOptions(data.data || []);
-      } else {
-        console.error(data.message || "Failed to fetch stages.");
-      }
+      if ((data.status === true || data.status === "true") && data.success === "1") {
+        // Sort stages by their ID to maintain order
+        const sortedStages = (data.data || []).sort((a, b) => {
+          const idA = parseInt(a.stage_id || a.id || 0);
+          const idB = parseInt(b.stage_id || b.id || 0);
+          return idA - idB;
+        });
+        setStageOptions(sortedStages);
+      } else console.error("Failed to fetch stages.", data);
     } catch (err) {
       console.error("Error fetching stages:", err);
     } finally {
@@ -98,25 +103,16 @@ const ViewLeads = () => {
     }
   };
 
-  // ---------- FETCH PRODUCT MASTER LIST ----------
   const fetchProducts = async () => {
     setProductLoading(true);
     try {
-      const res = await fetch(`${API_MASTER}/list_mst_product`, {
-        method: "POST",
-      });
-
+      const res = await fetch(`${API_MASTER}/list_mst_product`, { method: "POST" });
       const data = await res.json();
-      console.log("list_mst_product response (ViewLeads):", data);
-
-      if (
-        (data.status === true || data.status === "true") &&
-        (data.success === "1" || data.success === 1)
-      ) {
+      if ((data.status === true || data.status === "true") && (data.success === "1" || data.success === 1)) {
         setProductOptions(data.data || []);
         return data.data || [];
       } else {
-        console.error(data.message || "Failed to fetch products.");
+        console.error("Failed to fetch products.", data);
         return [];
       }
     } catch (err) {
@@ -127,29 +123,18 @@ const ViewLeads = () => {
     }
   };
 
-  // ---------- FETCH BRANCH MASTER LIST ----------
   const fetchBranches = async () => {
     setBranchLoading(true);
     try {
       const res = await fetch(`${API_BASE}/branch_list`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-
       const data = await res.json();
-      console.log("branch_list response (ViewLeads):", data);
-
-      if (
-        (data.status === true || data.status === "true") &&
-        (data.success === "1" || data.success === 1)
-      ) {
+      if ((data.status === true || data.status === "true") && (data.success === "1" || data.success === 1)) {
         setBranchOptions(data.data || []);
-      } else {
-        console.error(data.message || "Failed to fetch branches.");
-      }
+      } else console.error("Failed to fetch branches.", data);
     } catch (err) {
       console.error("Error fetching branches:", err);
     } finally {
@@ -157,35 +142,71 @@ const ViewLeads = () => {
     }
   };
 
-  // ---------- FETCH SALESPERSON MASTER LIST ----------
   const fetchSalespersons = async () => {
     setSalespersonLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/sale_person_list`, {
-        method: "GET",
-      });
-
+      const res = await fetch(`${API_BASE}/sale_person_list`, { method: "GET" });
       const data = await res.json();
-      console.log("sale_person_list response (ViewLeads):", data);
-
-      if (
-        (data.status === true || data.status === "true") &&
-        (data.success === "1" || data.success === 1)
-      ) {
+      if ((data.status === true || data.status === "true") && (data.success === "1" || data.success === 1)) {
         const list = Array.isArray(data.data) ? data.data : [];
-        const onlySalespersons = list.filter(
-          (sp) => (sp.role || "").toLowerCase() === "salesperson"
-        );
-        setSalespersonOptions(onlySalespersons);
+        setSalespersonOptions(list);
+        return list;
       } else {
-        console.error(data.message || "Failed to fetch salespersons.");
+        console.error("Failed to fetch salespersons.", data);
+        return [];
       }
     } catch (err) {
       console.error("Error fetching salespersons:", err);
+      return [];
     } finally {
       setSalespersonLoading(false);
     }
   };
+
+  const fetchDepartments = async () => {
+    setDepartmentLoading(true);
+    try {
+      const fd = new FormData();
+      const res = await fetch(`${API_BASE}/department_list`, { method: "POST", body: fd });
+      const data = await res.json();
+      if ((data.status === true || data.status === "true") && (data.success === "1" || data.success === 1)) {
+        setDepartmentOptions(Array.isArray(data.data) ? data.data : []);
+        return Array.isArray(data.data) ? data.data : [];
+      } else {
+        console.error("Failed to fetch departments.", data);
+        return [];
+      }
+    } catch (err) {
+      console.error("Error fetching departments:", err);
+      return [];
+    } finally {
+      setDepartmentLoading(false);
+    }
+  };
+
+  // Update stageOrderMap and lostStageValue whenever stageOptions changes
+  useEffect(() => {
+    if (stageOptions.length > 0) {
+      // Create a map of stage names to their order
+      const orderMap = {};
+      let lostStage = "";
+      
+      stageOptions.forEach((stage, index) => {
+        const stageName = normalizeStage(stage.stage || stage.name || "");
+        if (stageName) {
+          orderMap[stageName] = index;
+          
+          // Check if this is the "lost" stage
+          if (stageName === "lost") {
+            lostStage = stage.stage || stage.name;
+          }
+        }
+      });
+      
+      setStageOrderMap(orderMap);
+      setLostStageValue(lostStage);
+    }
+  }, [stageOptions]);
 
   // ---------- FETCH EXISTING LEAD DATA BY ID ----------
   useEffect(() => {
@@ -193,11 +214,12 @@ const ViewLeads = () => {
 
     const fetchLead = async () => {
       if (isNew) {
-        // new: just load dropdown masters
+        // load masters and return
         fetchStages();
         fetchProducts();
         fetchBranches();
         fetchSalespersons();
+        fetchDepartments();
         return;
       }
 
@@ -205,56 +227,75 @@ const ViewLeads = () => {
         setLoading(true);
         setApiError("");
 
-        // First, load products synchronously and wait for them
-        console.log("📦 Step 1: Fetching products first...");
+        // 1) fetch product master first (used to map prod_id -> product_name if needed)
         const products = await fetchProducts();
-        console.log("✅ Products loaded:", products);
 
-        // Then load other masters
-        fetchStages();
-        fetchBranches();
-        fetchSalespersons();
+        // 2) fetch other masters in parallel and wait
+        await Promise.all([fetchStages(), fetchBranches(), fetchSalespersons(), fetchDepartments()]);
 
-        // Then fetch the lead data
-        console.log("📋 Step 2: Fetching lead data...");
+        // 3) fetch the lead
         const res = await fetch(`${API_BASE}/fetch_lead_data`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id }),
+          body: JSON.stringify({ id }),
           signal: controller.signal,
         });
 
-        if (!res.ok) throw new Error("Network error");
+        if (!res.ok) throw new Error("Network response not ok");
 
         const data = await res.json();
-        console.log("✅ fetch_lead_data response:", data);
-
-        if (
-          !(data.status === true || data.status === "true") ||
-          data.success !== "1" ||
-          !data.data
-        ) {
+        if (!(data.status === true || data.status === "true") || data.success !== "1" || !data.data) {
           setApiError(data.message || "Lead not found.");
           return;
         }
 
         const lead = Array.isArray(data.data) ? data.data[0] : data.data;
 
-        // Simplified product matching
-        let productValue = lead.prod_id || "";
-
-        // If no prod_id, try to match by product name
-        if (!productValue && (lead.producttype || lead.material)) {
-          const productName = lead.producttype || lead.material;
-          const matchingProduct = products.find(
-            (p) => String(p.product_name).toLowerCase().trim() === 
-                   String(productName).toLowerCase().trim()
-          );
-          productValue = matchingProduct ? String(matchingProduct.prod_id) : "";
+        // ---- Resolve product to static value if possible ----
+        let productValue = "";
+        // Attempt direct match against static list (look at lead.product / producttype / material)
+        const candidates = [lead.product, lead.producttype, lead.material].filter(Boolean).map(String);
+        if (candidates.length) {
+          const joined = candidates.join(" ").toLowerCase();
+          // match by static value (value or label)
+          const matchedStatic = STATIC_PRODUCTS.find((p) => {
+            const val = String(p.value).toLowerCase();
+            const lab = String(p.label).toLowerCase();
+            return joined.includes(val) || joined.includes(lab);
+          });
+          if (matchedStatic) productValue = matchedStatic.value;
         }
 
-        console.log("🎯 Final product value to set:", productValue);
-        setRawProductValue(productValue);
+        // If still empty, try prod_id -> set to prod_id (fallback); or match product master by name -> prod_id
+        if (!productValue) {
+          if (lead.prod_id) {
+            // backend used master prod_id; we store prod_id raw as fallback
+            productValue = String(lead.prod_id);
+          } else if (lead.product) {
+            // try to match by product master name
+            const match = (products || []).find(
+              (p) => String(p.product_name).toLowerCase().trim() === String(lead.product).toLowerCase().trim()
+            );
+            if (match) productValue = String(match.prod_id);
+            else productValue = String(lead.product); // raw fallback
+          }
+        }
+
+        // ---- Resolve salespersonId (emp_id) ----
+        const salespersonId = lead.sales_person ? String(lead.sales_person) : "";
+
+        // ---- Resolve department to dpt_id if possible ----
+        let departmentValue = "";
+        if (lead.department) {
+          const d = String(lead.department);
+          const byId = departmentOptions.find((dept) => String(dept.dpt_id) === d);
+          const byName = departmentOptions.find(
+            (dept) => String(dept.department).toLowerCase().trim() === d.toLowerCase().trim()
+          );
+          if (byId) departmentValue = String(byId.dpt_id);
+          else if (byName) departmentValue = String(byName.dpt_id);
+          else departmentValue = d;
+        }
 
         setFormData({
           projectName: lead.project_name || "",
@@ -262,22 +303,21 @@ const ViewLeads = () => {
           clientName: lead.client_name || "",
           email: lead.email || "",
           contractor: lead.contractor || "",
-          department: lead.department || "",
-          salespersonName: lead.sales_person || "",
+          department: departmentValue,
+          salespersonId,
           stage: lead.stage || "",
           remarks: lead.remark || "",
           visitDate: lead.visiting_date || "",
           nextVisitDate: lead.nxt_visit_date || "",
           additionalNotes: lead.additional_notes || "",
           officeBranch: lead.branch || "",
-          product: lead.product || "", // Changed from material to product
+          product: productValue || "",
         });
 
-        // store original stage for transition rules
         setOriginalStage(lead.stage || "");
       } catch (err) {
         if (err.name !== "AbortError") {
-          console.error(err);
+          console.error("Error in fetchLead:", err);
           setApiError("Something went wrong while fetching lead data.");
         }
       } finally {
@@ -287,103 +327,106 @@ const ViewLeads = () => {
 
     fetchLead();
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isNew]);
 
   // ---------- FORM HANDLERS ----------
   const handleChange = (e) => {
     const { name, value } = e.target;
-    console.log("📝 Field changed:", name, "→", value);
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Get the allowed next stages for a lead based on current stage
+  const getAllowedStagesForLead = (currentStageNorm) => {
+    const currentOrder = stageOrderMap[currentStageNorm];
+    
+    // If current stage is not in our map, return empty
+    if (currentOrder === undefined) return [];
+    
+    // Start with the current stage
+    const allowedStages = [currentStageNorm];
+    
+    // If current stage is the last one, return only itself
+    if (currentOrder === stageOptions.length - 1) {
+      return allowedStages;
+    }
+    
+    // Add the next stage in the progression
+    const nextStageNorm = normalizeStage(stageOptions[currentOrder + 1]?.stage || stageOptions[currentOrder + 1]?.name || "");
+    if (nextStageNorm) {
+      allowedStages.push(nextStageNorm);
+    }
+    
+    // Add the "lost" stage if it exists and the current stage is not already "lost"
+    if (lostStageValue && currentStageNorm !== "lost") {
+      allowedStages.push("lost");
+    }
+    
+    return allowedStages;
   };
 
   // ---------- UPDATE LEAD ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
       setLoading(true);
       setApiError("");
 
       if (!isNew) {
-        // Stage transition rules (server-side guard)
-        const newStage = (formData.stage || "").toLowerCase();
-        const prevStage = (originalStage || "").toLowerCase();
+        // Dynamic stage rules based on the stage order map
+        const newStage = normalizeStage(formData.stage);
+        const prevStage = normalizeStage(originalStage);
 
-        if (prevStage === "civil") {
-          const allowedFromCivil = ["civil", "finalised", "lost"];
-          if (!allowedFromCivil.includes(newStage)) {
-            alert("From 'Civil' you can only move to 'Finalised' or 'Lost' (or stay on 'Civil').");
-            return;
+        // Get the allowed stages for the current stage
+        const allowedNorm = getAllowedStagesForLead(prevStage);
+        
+        // Check if the new stage is allowed
+        if (!allowedNorm.includes(newStage)) {
+          if (newStage === "lost") {
+            alert("Cannot move to 'lost' stage from this stage.");
+          } else {
+            alert("Invalid stage transition. You can only move to the next stage in sequence or to 'lost'.");
           }
-        }
-        if (prevStage === "finalised") {
-          const allowedFromFinalised = ["finalised", "submit"];
-          if (!allowedFromFinalised.includes(newStage)) {
-            alert("From 'Finalised' you can only move to 'Submit' (or stay on 'Finalised').");
-            return;
-          }
-        }
-        if (prevStage === "lost" && newStage !== "lost") {
-          alert("Once a lead is marked 'Lost', its status cannot be changed.");
-          return;
-        }
-        if (prevStage === "submit" && newStage !== "submit") {
-          alert("Once a lead is marked 'Submit', its status cannot be changed.");
           return;
         }
 
-        // Find the product to get both ID and name
-        const selectedProduct = productOptions.find(
-          (p) => p.prod_id === formData.product
-        );
-
+        // Build payload: send product exactly as stored in formData.product
         const payload = {
           id: String(id),
-          project_name: formData.projectName,
-          architech_name: formData.architectName,
-          client_name: formData.clientName,
+          project_name: formData.projectName || "",
+          architech_name: formData.architectName || "",
+          client_name: formData.clientName || "",
           email: formData.email || "",
-          branch: formData.officeBranch,
-          contractor: formData.contractor,
-          department: formData.department,
-          sales_person: formData.salespersonName,
-          stage: formData.stage,
-          remark: formData.remarks,
-          visiting_date: formData.visitDate,
-          nxt_visit_date: formData.nextVisitDate,
+          branch: formData.officeBranch || "",
+          contractor: formData.contractor || "",
+          department: formData.department || "",
+          sales_person: formData.salespersonId || "",
+          stage: formData.stage || "",
+          remark: formData.remarks || "",
+          visiting_date: formData.visitDate || "",
+          nxt_visit_date: formData.nextVisitDate || "",
           additional_notes: formData.additionalNotes || "",
-          // Send product information consistently
-          product: formData.product,  // Send the prod_id
+          product: formData.product || "",
         };
-
-        console.log("📤 update_lead_data payload:", payload);
 
         const res = await fetch(`${API_BASE}/update_lead_data`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
 
         const data = await res.json();
-        console.log("📥 update_lead_data response:", data);
-
-        if (
-          (data.status === true || data.status === "true") &&
-          (data.success === "1" || data.success === 1)
-        ) {
+        if ((data.status === true || data.status === "true") && (data.success === "1" || data.success === 1)) {
           alert(data.message || "Lead updated successfully");
           navigate("/leadgeneration");
         } else {
           setApiError(data.message || "Failed to update lead.");
         }
       } else {
-        console.log("New lead submit (not wired):", formData);
-        alert("Add-lead API not wired yet (only view/update).");
+        alert("Add-lead not implemented here.");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error saving lead:", err);
       setApiError("Something went wrong while saving lead.");
     } finally {
       setLoading(false);
@@ -410,131 +453,96 @@ const ViewLeads = () => {
     );
   }
 
-  const originalStageLower = (originalStage || "").toLowerCase();
-  const stageSelectLocked =
-    originalStageLower === "lost" || originalStageLower === "submit";
+  const originalStageLower = normalizeStage(originalStage);
+  const currentStageLower = normalizeStage(formData.stage);
+  const stageSelectLocked = originalStageLower === "lost" || 
+                           (stageOrderMap[originalStageLower] !== undefined && 
+                            stageOrderMap[originalStageLower] === stageOptions.length - 1);
+
+  // Get allowed stages for the current stage
+  const allowedNorm = getAllowedStagesForLead(originalStageLower);
 
   return (
     <Container className="py-4">
       <Card className="shadow-sm border-0">
         <Card.Header className="bg-white d-flex justify-content-between align-items-center">
-          <h5 className="mb-0 fw-bold">
-            {isNew ? "Add New Lead" : "Edit Lead"}
-          </h5>
-          <Button
-            as={Link}
-            to="/leadgeneration"
-            variant="outline-primary"
-            size="sm"
-          >
+          <h5 className="mb-0 fw-bold">{isNew ? "Add New Lead" : "Edit Lead"}</h5>
+          <Button as={Link} to="/leadgeneration" variant="outline-primary" size="sm">
             <FaArrowLeft className="me-2" />
             Back
           </Button>
         </Card.Header>
 
         <Card.Body>
-          {apiError && (
-            <p className="text-danger mb-3" style={{ fontSize: "0.9rem" }}>
-              {apiError}
-            </p>
-          )}
+          {apiError && <p className="text-danger mb-3" style={{ fontSize: "0.9rem" }}>{apiError}</p>}
 
           <Form onSubmit={handleSubmit}>
             <Row className="mb-3">
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Project Name *</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="projectName"
-                    value={formData.projectName}
-                    onChange={handleChange}
-                    required
-                  />
+                  <Form.Control type="text" name="projectName" value={formData.projectName} onChange={handleChange} required />
                 </Form.Group>
               </Col>
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Architect Name</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="architectName"
-                    value={formData.architectName}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="text" name="architectName" value={formData.architectName} onChange={handleChange} />
                 </Form.Group>
               </Col>
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Client Name</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="clientName"
-                    value={formData.clientName}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="text" name="clientName" value={formData.clientName} onChange={handleChange} />
                 </Form.Group>
               </Col>
             </Row>
 
-            {/* Email */}
             <Row className="mb-3">
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Email</Form.Label>
-                  <Form.Control
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="email" name="email" value={formData.email} onChange={handleChange} />
                 </Form.Group>
               </Col>
             </Row>
 
-            {/* Branch & Product */}
             <Row className="mb-3">
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Branch</Form.Label>
-                  <Form.Select
-                    name="officeBranch"
-                    value={formData.officeBranch}
-                    onChange={handleChange}
-                  >
+                  <Form.Select name="officeBranch" value={formData.officeBranch} onChange={handleChange}>
                     <option value="">Select Branch</option>
                     {branchLoading && <option>Loading branches...</option>}
                     {!branchLoading &&
                       branchOptions.map((b) => (
-                        <option
-                          key={b.id || b.branch_id || b.branch_name}
-                          value={b.branch_name}
-                        >
+                        <option key={b.id || b.branch_id || b.branch_name} value={b.branch_name}>
                           {b.branch_name}
                         </option>
                       ))}
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Product</Form.Label>
-                  <Form.Select
-                    name="product"  // Changed from "material" to "product"
-                    value={formData.product}
-                    onChange={handleChange}
-                  >
+                  <Form.Select name="product" value={formData.product} onChange={handleChange}>
                     <option value="">Select Product</option>
-                    {productLoading && <option>Loading products...</option>}
+                    {/* static options first */}
+                    {STATIC_PRODUCTS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                    {/* Also include product master as options so fallback prod_id/name can be selected */}
                     {!productLoading &&
                       productOptions.map((p) => (
-                        <option key={p.prod_id || p.product_name} >
+                        <option key={`master_${p.prod_id}`} value={String(p.prod_id)}>
                           {p.product_name}
                         </option>
                       ))}
                   </Form.Select>
-                  {/* Debug info */}
-                 
                 </Form.Group>
               </Col>
             </Row>
@@ -543,23 +551,23 @@ const ViewLeads = () => {
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Contractor</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="contractor"
-                    value={formData.contractor}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="text" name="contractor" value={formData.contractor} onChange={handleChange} />
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Department</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="department"
-                    value={formData.department}
-                    onChange={handleChange}
-                  />
+                  <Form.Select name="department" value={formData.department} onChange={handleChange}>
+                    <option value="">Select Department</option>
+                    {departmentLoading && <option>Loading departments...</option>}
+                    {!departmentLoading &&
+                      departmentOptions.map((dept) => (
+                        <option key={dept.dpt_id || dept.id || dept.department} value={String(dept.dpt_id)}>
+                          {dept.department}
+                        </option>
+                      ))}
+                  </Form.Select>
                 </Form.Group>
               </Col>
             </Row>
@@ -568,74 +576,47 @@ const ViewLeads = () => {
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Salesperson</Form.Label>
-                  <Form.Select
-                    name="salespersonName"
-                    value={formData.salespersonName}
-                    onChange={handleChange}
-                  >
+                  <Form.Select name="salespersonId" value={formData.salespersonId} onChange={handleChange}>
                     <option value="">Select Salesperson</option>
                     {salespersonLoading && <option>Loading...</option>}
                     {!salespersonLoading &&
                       salespersonOptions.map((sp) => (
-                        <option
-                          key={sp.emp_id || sp.id || sp.name}
-                          value={sp.name}
-                        >
+                        <option key={sp.emp_id || sp.id || sp.name} value={String(sp.emp_id)}>
                           {sp.name}
                         </option>
                       ))}
                   </Form.Select>
                 </Form.Group>
               </Col>
+
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Stage</Form.Label>
-                  <Form.Select
-                    name="stage"
-                    value={formData.stage}
-                    onChange={handleChange}
+                  <Form.Select 
+                    name="stage" 
+                    value={formData.stage} 
+                    onChange={handleChange} 
                     disabled={stageSelectLocked}
+                    style={{
+                      backgroundColor: currentStageLower === "lost" ? "#dc3545" : 
+                                      (stageSelectLocked ? "#6c757d" : "#ffffff"),
+                      color: currentStageLower === "lost" || stageSelectLocked ? "#ffffff" : "#000000"
+                    }}
                   >
                     <option value="">Select...</option>
                     {stageLoading && <option>Loading...</option>}
                     {!stageLoading &&
                       stageOptions.map((stg) => {
                         const label = stg.stage || stg.name || "";
-                        const lower = label.toLowerCase();
-                        const current = originalStageLower;
+                        const labelNorm = normalizeStage(label);
 
-                        let disabled = false;
-
-                        // civil → civil / finalised / lost
-                        if (current === "civil") {
-                          const allowedFromCivil = [
-                            "civil",
-                            "finalised",
-                            "lost",
-                          ];
-                          disabled = !allowedFromCivil.includes(lower);
-                        }
-                        // finalised → finalised / submit
-                        else if (current === "finalised") {
-                          const allowedFromFinalised = [
-                            "finalised",
-                            "submit",
-                          ];
-                          disabled = !allowedFromFinalised.includes(lower);
-                        }
-                        // lost → only lost (but select already disabled by stageSelectLocked)
-                        else if (current === "lost") {
-                          disabled = lower !== "lost";
-                        }
-                        // submit → only submit (but select already disabled by stageSelectLocked)
-                        else if (current === "submit") {
-                          disabled = lower !== "submit";
-                        }
+                        // Disable options that aren't allowed according to workflow
+                        const disabled = !allowedNorm.includes(labelNorm);
 
                         return (
-                          <option
-                            key={stg.stage_id || stg.id || label}
-                            value={label}
+                          <option 
+                            key={stg.stage_id || stg.id || label} 
+                            value={label} 
                             disabled={disabled}
                           >
                             {label}
@@ -643,9 +624,14 @@ const ViewLeads = () => {
                         );
                       })}
                   </Form.Select>
-                  <Form.Text className="text-muted d-block mt-1">
-                    Original stage: {originalStage || "-"}
-                  </Form.Text>
+                  <Form.Text className="text-muted d-block mt-1"></Form.Text>
+                  {stageSelectLocked && (
+                    <Form.Text className="text-muted d-block">
+                      {currentStageLower === "lost" 
+                        ? "This lead is marked as lost and its stage cannot be changed."
+                        : "This lead is in the final stage and cannot be changed."}
+                    </Form.Text>
+                  )}
                 </Form.Group>
               </Col>
             </Row>
@@ -654,25 +640,13 @@ const ViewLeads = () => {
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Remarks</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    name="remarks"
-                    value={formData.remarks}
-                    onChange={handleChange}
-                  />
+                  <Form.Control as="textarea" rows={2} name="remarks" value={formData.remarks} onChange={handleChange} />
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Additional Notes</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={3}
-                    name="additionalNotes"
-                    value={formData.additionalNotes}
-                    onChange={handleChange}
-                  />
+                  <Form.Control as="textarea" rows={3} name="additionalNotes" value={formData.additionalNotes} onChange={handleChange} />
                 </Form.Group>
               </Col>
             </Row>
@@ -681,23 +655,13 @@ const ViewLeads = () => {
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Visit Date</Form.Label>
-                  <Form.Control
-                    type="date"
-                    name="visitDate"
-                    value={toInputDate(formData.visitDate)}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="date" name="visitDate" value={toInputDate(formData.visitDate)} onChange={handleChange} />
                 </Form.Group>
               </Col>
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Next Visit</Form.Label>
-                  <Form.Control
-                    type="date"
-                    name="nextVisitDate"
-                    value={toInputDate(formData.nextVisitDate)}
-                    onChange={handleChange}
-                  />
+                  <Form.Control type="date" name="nextVisitDate" value={toInputDate(formData.nextVisitDate)} onChange={handleChange} />
                 </Form.Group>
               </Col>
             </Row>

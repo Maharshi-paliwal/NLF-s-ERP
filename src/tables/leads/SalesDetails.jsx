@@ -745,9 +745,12 @@ const remarks =
   "N/A";
 
   // filter logs for active salesperson only
-  const logsForActiveSalesperson = empId
-    ? salesLogs.filter((log) => String(log.emp_id) === String(empId))
-    : salesLogs;
+ const logsForActiveSalesperson = salesLogs.filter(
+  (log) =>
+    String(log.emp_id) === String(empId) &&
+    String(log.lead_id) === String(leadId)
+);
+
 
   /* --------- RENDER --------- */
 

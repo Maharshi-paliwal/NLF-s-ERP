@@ -1,9 +1,6 @@
-
-
-
 // src/pages/ClientLead.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom"; // Combined import
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   Container,
@@ -16,7 +13,7 @@ import {
 } from "react-bootstrap";
 import { FaEye, FaEdit, FaDownload, FaUser } from "react-icons/fa";
 import PDFPreview from "../components/PDFpreview.jsx";
-import PDFClientPO from "../components/PDFClientPO.jsx";
+import POPreviewModal from "../components/POPreviewModal";
 
 // ======================
 // Helper & Utility Functions
@@ -52,11 +49,32 @@ const formatQuoteNumber = (quoteNo) => {
   return quoteNo && quoteNo.trim() !== "" ? quoteNo : "-";
 };
 
-// ⭐ ADDED: same helper you use in AdminApproval.jsx
+// Same helper as AdminApproval.jsx
 const isApprovedValue = (val) => {
   if (!val) return false;
   const s = String(val).trim().toLowerCase();
   return ["yes", "approved", "true", "1"].includes(s);
+};
+
+// display date as dd-mm-yyyy
+const formatDisplayDate = (dateStr) => {
+  if (!dateStr) return "-";
+
+  const parts = dateStr.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    const [y, m, d] = parts;
+    return `${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}-${y}`;
+  }
+
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = d.getFullYear();
+    return `${dd}-${mm}-${yy}`;
+  }
+
+  return dateStr;
 };
 
 // ======================
@@ -64,8 +82,9 @@ const isApprovedValue = (val) => {
 // ======================
 
 export default function ClientLead() {
-  const location = useLocation(); // Get the current location object
-  
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [quotationRounds, setQuotationRounds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -74,8 +93,13 @@ export default function ClientLead() {
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
 
   // PO-specific state
-  const [poList, setPoList] = useState([]);        // from list_po
+  const [poList, setPoList] = useState([]);
   const [poLoading, setPoLoading] = useState(false);
+
+  // Work Order list
+  const [workOrderList, setWorkOrderList] = useState([]);
+  const [workOrderLoading, setWorkOrderLoading] = useState(false);
+
   const [selectedPO, setSelectedPO] = useState(null);
   const [showPDFClientPO, setShowPDFClientPO] = useState(false);
 
@@ -85,17 +109,18 @@ export default function ClientLead() {
 
   const [fetchingQuoteNo, setFetchingQuoteNo] = useState(false);
 
-  const navigate = useNavigate();
-
   // ======================
   // Fetch Next Quote No  (Create Quotation)
   // ======================
   const fetchNextQuoteNumber = async () => {
     try {
       setFetchingQuoteNo(true);
-      const response = await fetch("https://nlfs.in/erp/index.php/Erp/get_next_quote_no");
+      const response = await fetch(
+        "https://nlfs.in/erp/index.php/Erp/get_next_quote_no"
+      );
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
       const result = await response.json();
       if (result.status && result.success === "1") {
@@ -132,25 +157,52 @@ export default function ClientLead() {
     setSelectedQuoteId(null);
   };
 
+  // Called from PDFPreview after admin approves
+  const handleAdminApprovedFromModal = (approvedQuoteId) => {
+    setQuotationRounds((prev) =>
+      prev.map((round) => {
+        if (String(round.quotationId) === String(approvedQuoteId)) {
+          return {
+            ...round,
+            adminApproval: "Yes",
+            roundStatus: "accepted",
+          };
+        }
+        return round;
+      })
+    );
+  };
+
   // ======================
   // CLIENT PO PDF preview / download
   // ======================
   const handleShowPDFClientPO = async (quotationId) => {
-    // First, find the quotation to get the fullQuotationId
-    const quotation = quotationRounds.find(q => String(q.quotationId) === String(quotationId));
-    
+    const quotation = quotationRounds.find(
+      (q) => String(q.quotationId) === String(quotationId)
+    );
+
     if (!quotation) {
       setError("Quotation not found");
       return;
     }
-    
-    // Now find PO using the fullQuotationId
-    const poEntry = poList.find(
-      (po) => String(po.quote_id) === String(quotation.fullQuotationId)
-    );
+
+    const poEntry = poList.find((po) => {
+      const candidateQuoteId = String(
+        po.quote_id || po.quoteId || po.quote_no || ""
+      );
+      const fullQ = String(
+        quotation.fullQuotationId || quotation.quote_no || ""
+      );
+      const numericQ = String(quotation.quotationId || "");
+      return (
+        candidateQuoteId === fullQ ||
+        candidateQuoteId === numericQ ||
+        candidateQuoteId.includes(numericQ) ||
+        fullQ.includes(candidateQuoteId)
+      );
+    });
 
     if (!poEntry) {
-      // If PO not found, navigate to PO creation
       navigate(`/po/new/${quotationId}/initial`);
       return;
     }
@@ -159,29 +211,157 @@ export default function ClientLead() {
       setPoLoading(true);
       setError(null);
 
-      const response = await fetch(
-        "https://nlfs.in/erp/index.php/Api/get_po_id",
+      const quotationResponse = await fetch(
+        "https://nlfs.in/erp/index.php/Nlf_Erp/get_quotation_by_id",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ po_id: poEntry.po_id }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quote_id: String(quotationId) }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!quotationResponse.ok) {
+        throw new Error(
+          `Failed to fetch quotation: ${quotationResponse.status}`
+        );
       }
 
-      const result = await response.json();
+      const quotationResult = await quotationResponse.json();
 
-      if (result.status === "true" && result.success === "1" && result.data) {
-        setSelectedPO(result.data);
-        setShowPDFClientPO(true);
-      } else {
-        throw new Error(result.message || "Failed to fetch PO details");
+      if (!quotationResult.status || !quotationResult.data) {
+        throw new Error("Failed to fetch quotation details");
       }
+
+      const quotationData = quotationResult.data;
+
+      const poResponse = await fetch(
+        "https://nlfs.in/erp/index.php/Api/get_po_id",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            po_id: poEntry.po_id || poEntry.poId || poEntry.id,
+          }),
+        }
+      );
+
+      if (!poResponse.ok) {
+        throw new Error(`HTTP error! status: ${poResponse.status}`);
+      }
+
+      const poResult = await poResponse.json();
+
+      if (
+        poResult.status !== "true" ||
+        poResult.success !== "1" ||
+        !poResult.data
+      ) {
+        throw new Error(poResult.message || "Failed to fetch PO details");
+      }
+
+      const apiData = poResult.data;
+
+      const savedPo = {
+        po_id: apiData.po_id || poEntry.po_id || "",
+        po_no: apiData.po_no || poEntry.po_no || "",
+        quote_id:
+          apiData.quote_id ||
+          quotationData.quote_no ||
+          quotation.fullQuotationId ||
+          "",
+        date:
+          apiData.date ||
+          apiData.po_date ||
+          new Date().toISOString().split("T")[0],
+        company:
+          apiData.company ||
+          apiData.companyName ||
+          quotationData.company ||
+          "",
+        site_address:
+          apiData.site_address ||
+          apiData.siteAddress ||
+          quotationData.site_address ||
+          "",
+        billing_address:
+          apiData.billing_address ||
+          apiData.billingAddress ||
+          quotationData.billing_address ||
+          "",
+        gst_number:
+          apiData.gst_number ||
+          apiData.gst ||
+          quotationData.gst_number ||
+          "",
+        pan_number:
+          apiData.pan_number ||
+          apiData.panNumber ||
+          quotationData.pan_number ||
+          "",
+        contact_person:
+          apiData.contact_person ||
+          apiData.contactPerson ||
+          quotationData.contact_person ||
+          "",
+        branch:
+          apiData.branch || apiData.branch_name || quotationData.branch || "",
+        delivery_schedule: apiData.delivery_schedule || "",
+        liquidated_damages: apiData.liquidated_damages || "",
+        defect_liability_period: apiData.defect_liability_period || "",
+        installation_scope: apiData.installation_scope || "",
+        total_amt:
+          apiData.total_amt || apiData.totalAmount || quotationData.total || "",
+        total_advance: apiData.total_advance || apiData.advanceAmount || "",
+        total_bal: apiData.total_bal || apiData.balanceAmount || "",
+        gst: apiData.gst || "18%",
+        items: (() => {
+          let sourceItems =
+            apiData.items ||
+            apiData.item_list ||
+            apiData.po_items ||
+            quotationData.items ||
+            [];
+
+          return sourceItems.map((item) => {
+            const qty = String(item.qty || item.quantity || "");
+            const rate = String(item.rate || item.price || "");
+            const amt = String(
+              item.amt ||
+              item.amount ||
+              (parseFloat(qty) || 0) * (parseFloat(rate) || 0)
+            );
+
+            const inst_unit =
+              item.inst_unit || item.install_unit || item.unit || "";
+            const inst_qty = String(item.inst_qty || item.install_qty || qty);
+            const inst_rate = String(
+              item.inst_rate || item.install_rate || rate
+            );
+            const inst_amt = String(item.inst_amt || item.install_amt || amt);
+            const total = String(item.total || item.totalAmount || amt);
+
+            return {
+              brand: item.brand || "",
+              product: item.product || item.material || item.item_name || "",
+              sub_product: item.sub_product || item.subProduct || "",
+              desc: item.desc || item.description || "",
+              unit: item.unit || item.uom || "",
+              qty,
+              rate,
+              amt,
+              inst_unit,
+              inst_qty,
+              inst_rate,
+              inst_amt,
+              total,
+              spec_image: item.spec_image || item.spec_img || item.image || "",
+            };
+          });
+        })(),
+      };
+
+      setSelectedPO(savedPo);
+      setShowPDFClientPO(true);
     } catch (err) {
       console.error("Error fetching PO details:", err);
       setError(err.message || "Failed to fetch PO details");
@@ -195,7 +375,6 @@ export default function ClientLead() {
     setSelectedPO(null);
   };
 
-  // Latest iteration helper (still available if needed)
   const isLatestIteration = (quotationId, roundIdentifier, allRounds) => {
     const rounds = allRounds.filter((r) => r.quotationId === quotationId);
     const latest = rounds.reduce((latest, cur) => {
@@ -235,8 +414,13 @@ export default function ClientLead() {
               quote.admin_approval
             );
 
+            const roundIdentifier =
+              quote.revise && quote.revise !== "Original"
+                ? quote.revise
+                : "Initial";
+
             allQuotationRounds.push({
-              key: `${quote.quote_id}-Initial`,
+              key: `${quote.quote_id}-${roundIdentifier}`,
               quotationId: quote.quote_id,
               fullQuotationId: formattedQuoteNo,
               name: quote.name,
@@ -247,14 +431,34 @@ export default function ClientLead() {
               branch: quote.branch || "",
               product: quote.product || "",
               description: quote.desc || "",
-              roundIdentifier: "Initial",
+              roundIdentifier,
               roundStatus: displayStatus,
               roundDate: quote.date || "",
               revise: quote.revise || "Original",
-              // ⭐ ADDED: store approvals from API
               rateApproval: quote.rate_approval || "",
               adminApproval: quote.admin_approval || "",
             });
+          });
+
+          allQuotationRounds.sort((a, b) => {
+            const dateA = a.roundDate ? new Date(a.roundDate) : new Date(0);
+            const dateB = b.roundDate ? new Date(b.roundDate) : new Date(0);
+
+            if (dateB - dateA !== 0) return dateB - dateA;
+
+            const sameQuote =
+              String(a.fullQuotationId) === String(b.fullQuotationId) ||
+              String(a.quotationId) === String(b.quotationId);
+
+            if (sameQuote) {
+              const rA = getRoundSortValue(a.roundIdentifier);
+              const rB = getRoundSortValue(b.roundIdentifier);
+              if (rB - rA !== 0) return rB - rA;
+            }
+
+            const idA = parseInt(a.quotationId, 10) || 0;
+            const idB = parseInt(b.quotationId, 10) || 0;
+            return idB - idA;
           });
 
           setQuotationRounds(allQuotationRounds);
@@ -270,7 +474,7 @@ export default function ClientLead() {
     };
 
     fetchQuotationRounds();
-  }, []);
+  }, [location.key]);
 
   // ======================
   // FETCH PO LIST (real data)
@@ -279,7 +483,6 @@ export default function ClientLead() {
     const fetchPoList = async () => {
       try {
         setPoLoading(true);
-        setError(null);
 
         const response = await fetch(
           "https://nlfs.in/erp/index.php/Api/list_po",
@@ -298,21 +501,78 @@ export default function ClientLead() {
 
         const result = await response.json();
 
-        if (result.status === "true" && result.success === "1" && Array.isArray(result.data)) {
+        const message = String(result.message || "").toLowerCase();
+
+        if (
+          result.status === "true" &&
+          result.success === "1" &&
+          Array.isArray(result.data)
+        ) {
           setPoList(result.data);
+        } else if (
+          message.includes("no records found") ||
+          (Array.isArray(result.data) && result.data.length === 0)
+        ) {
+          setPoList([]);
         } else {
           throw new Error(result.message || "Failed to fetch PO list");
         }
       } catch (err) {
         console.error("Error fetching PO list:", err);
-        setError(err.message || "Failed to fetch PO list");
+        if (!String(err.message).toLowerCase().includes("no records found")) {
+          setError(err.message || "Failed to fetch PO list");
+        }
       } finally {
         setPoLoading(false);
       }
     };
 
     fetchPoList();
-  }, [location.key]); // This will re-fetch when the location key changes (navigation)
+  }, [location.key]);
+
+  // ======================
+  // FETCH WORK ORDER LIST
+  // ======================
+  useEffect(() => {
+    const fetchWorkOrderList = async () => {
+      try {
+        setWorkOrderLoading(true);
+        setError(null);
+
+        const response = await fetch(
+          "https://nlfs.in/erp/index.php/Api/list_work_order",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ keyword: "" }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (
+          (result.status === "true" || result.status === true) &&
+          Array.isArray(result.data)
+        ) {
+          setWorkOrderList(result.data);
+        } else {
+          setWorkOrderList([]);
+        }
+      } catch (err) {
+        console.error("Error fetching Work Order list:", err);
+      } finally {
+        setWorkOrderLoading(false);
+      }
+    };
+
+    fetchWorkOrderList();
+  }, [location.key]);
 
   // ======================
   // Pagination + Search
@@ -339,10 +599,14 @@ export default function ClientLead() {
       <Row>
         <Col md="12">
           <Card className="strpied-tabled-with-hover">
-            <Card.Header style={{ backgroundColor: "#fff", borderBottom: "none" }}>
+            <Card.Header
+              style={{ backgroundColor: "#fff", borderBottom: "none" }}
+            >
               <Row className="align-items-center">
                 <Col>
-                  <Card.Title style={{ marginTop: "2rem", fontWeight: "700" }}>
+                  <Card.Title
+                    style={{ marginTop: "2rem", fontWeight: "700" }}
+                  >
                     Quotation Rounds
                   </Card.Title>
                 </Col>
@@ -350,7 +614,7 @@ export default function ClientLead() {
                 <Col className="d-flex justify-content-end gap-2">
                   <Form.Control
                     type="text"
-                    placeholder="Search by Name, Quote No, revise, Status..."
+                    placeholder="Search by Name, Quote No..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="custom-searchbar-input nav-search"
@@ -368,14 +632,16 @@ export default function ClientLead() {
               </Row>
             </Card.Header>
 
-            {/* ERROR ALERT */}
             {error && (
-              <Alert variant="danger" dismissible onClose={() => setError(null)}>
+              <Alert
+                variant="danger"
+                dismissible
+                onClose={() => setError(null)}
+              >
                 {error}
               </Alert>
             )}
 
-            {/* TABLE */}
             <Card.Body className="table-full-width table-responsive">
               <table className="table table-striped table-hover">
                 <thead>
@@ -383,10 +649,9 @@ export default function ClientLead() {
                     <th>Sr. no</th>
                     <th>Name</th>
                     <th>Quote No</th>
-                    <th>revise</th>
-                    <th>Round Date</th>
+                    <th>Date</th>
                     <th>Status</th>
-                    <th style={{ minWidth: "140px" }}>PO Action</th>
+                    <th style={{ minWidth: "220px" }}>WO / PO Action</th>
                     <th style={{ minWidth: "230px" }}>Actions</th>
                   </tr>
                 </thead>
@@ -400,81 +665,160 @@ export default function ClientLead() {
                   ) : currentRounds.length === 0 ? (
                     <tr>
                       <td colSpan="8" className="text-center p-4">
-                        No quotations found.
+                        finding quotations.
                       </td>
                     </tr>
                   ) : (
                     currentRounds.map((round, index) => {
                       const showEdit = round.roundStatus === "draft";
-                      const showView = round.roundStatus !== "draft";
 
-                      // ⭐ NEW FLAGS from stored values
-                      const isRateApproved = isApprovedValue(round.rateApproval);
-                      const isAdminApproved = isApprovedValue(round.adminApproval);
+                      const isRateApproved = isApprovedValue(
+                        round.rateApproval
+                      );
+                      const isAdminApproved = isApprovedValue(
+                        round.adminApproval
+                      );
 
-                      // ✅ FIX: Check for PO using the fullQuotationId, not the numeric ID
                       const poForQuote = poList.find(
-                        (po) => String(po.quote_id) === String(round.fullQuotationId) // KEY CHANGE HERE
+                        (po) =>
+                          String(po.quote_id) === String(round.fullQuotationId)
                       );
                       const hasClientPO = !!poForQuote;
 
-                      // === DEBUGGING LOGS (Updated for clarity) ===
-                      console.log(`--- Checking Quote: ${round.fullQuotationId} (ID: ${round.quotationId}) ---`);
-                      console.log(`Rate Approved?`, isRateApproved, "Admin Approved?", isAdminApproved);
-                      console.log(`All available PO quote_ids:`, poList.map(po => po.quote_id));
-                      console.log(`Found matching PO:`, poForQuote);
-                      console.log(`Has Client PO?`, hasClientPO);
-                      // === END DEBUGGING LOGS ===
+                      // Work Orders linked to this quotation
+                      // Work Orders linked to this quotation (STRICT match)
+                      const workOrdersForQuote = workOrderList.filter((wo) => {
+                        const woQuote = String(
+                          wo.quto_id ||
+                          wo.quote_id ||
+                          wo.quotation_id ||
+                          ""
+                        ).trim();
+
+                        const quoteNumId = String(round.quotationId || "").trim();
+                        const quoteFull = String(round.fullQuotationId || "").trim();
+
+                        // Only count when WO is clearly for THIS quotation:
+                        // - exact match on quote_no (NLF-25-26-Q-01)
+                        // - or exact match on numeric quote_id, if saved that way
+                        return woQuote === quoteFull || woQuote === quoteNumId;
+                      });
+
+
+                      const hasAnyWorkOrder = workOrdersForQuote.length > 0;
+
+                      // ✅ Only count as APPROVED when account approval is approved
+                      const hasAccountsApprovedWorkOrder =
+                        workOrdersForQuote.some((wo) =>
+                          isApprovedValue(wo.acc_approval)
+                        );
 
                       return (
                         <tr key={round.key}>
                           <td>{indexFirst + index + 1}</td>
                           <td>{round.name}</td>
                           <td>{round.fullQuotationId}</td>
-                          <td>{round.revise === "Original" ? "-" : round.revise}</td>
-                          <td>{round.roundDate || "-"}</td>
+                          <td>{formatDisplayDate(round.roundDate)}</td>
                           <td>
                             <span
-                              className={`badge ${
-                                round.roundStatus === "accepted"
-                                  ? "bg-success"
-                                  : round.roundStatus === "revise"
+                              className={`badge ${round.roundStatus === "accepted"
+                                ? "bg-success"
+                                : round.roundStatus === "revise"
                                   ? "bg-warning"
                                   : round.roundStatus === "pending"
-                                  ? "bg-info"
-                                  : "bg-secondary"
-                              }`}
+                                    ? "bg-info"
+                                    : "bg-secondary"
+                                }`}
                             >
                               {round.roundStatus}
                             </span>
                           </td>
 
-                          {/* ✅ PO Action: Convert to PO or show that PO is created */}
+                          {/* WO / PO Action Column */}
                           <td>
-                            {round.roundStatus === "accepted" && !hasClientPO && (
-                              <Button
-                                size="sm"
-                                variant="success"
-                                onClick={() =>
-                                  navigate(`/po/new/${round.quotationId}/initial`)
-                                }
-                              >
-                                Convert to PO
-                              </Button>
-                            )}
+                            {/* STEP 1: Admin approved quote, NO WO yet -> Create Work Order */}
+                            {isAdminApproved &&
+                              !hasAnyWorkOrder &&
+                              !hasClientPO && (
+                                <Link
+                                  to={`/workorder/new/${round.quotationId}`}
+                                >
+                                  <Button size="sm" variant="warning">
+                                    Create Work Order
+                                  </Button>
+                                </Link>
+                              )}
 
-                            {round.roundStatus === "accepted" && hasClientPO && (
-                              <span className="badge bg-success">PO Created</span>
+                            {/* STEP 2: WO exists but Accounts has NOT approved yet */}
+                            {isAdminApproved &&
+                              hasAnyWorkOrder &&
+                              !hasAccountsApprovedWorkOrder &&
+                              !hasClientPO && (
+                                <span
+                                  className="px-2 py-1 rounded-2"
+                                  style={{
+                                    backgroundColor: "#ffc107",
+                                    fontSize: "14px",
+                                  }}
+                                >
+                                  WO Created (Pending Accounts Approval)
+                                </span>
+                              )}
+
+                            {/* STEP 3: WO exists AND Accounts approved -> show badge + Convert to PO */}
+                            {isAdminApproved &&
+                              hasAccountsApprovedWorkOrder &&
+                              !hasClientPO && (
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    className="px-2 py-1 rounded-2"
+                                    style={{
+                                      backgroundColor: "#28a745",
+                                      color: "#fff",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    Approved Work Order
+                                  </span>
+
+
+                                  <Button
+                                    size="sm"
+                                    variant="success"
+                                    onClick={() => {
+                                      console.log("Navigating to PO form with quotationId:", round.quotationId);
+                                      navigate(`/po/new/${round.quotationId}`);
+                                    }}
+                                  >
+                                    Convert to PO
+                                  </Button>
+                                </div>
+                              )}
+
+                            {/* STEP 4: PO already exists */}
+                            {hasClientPO && (
+                              <span
+                                style={{
+                                  backgroundColor: "#0d63fd",
+                                  color: "white",
+                                  fontSize: "14px",
+                                }}
+                                className="px-2 py-1 rounded-2"
+                              >
+                                PO Created
+                              </span>
                             )}
                           </td>
 
-                          {/* ACTIONS (Edit/View, Download Quote, Download PO) */}
+                          {/* Actions Column */}
                           <td className="d-flex gap-2">
                             {showEdit ? (
                               <button
                                 className="btn btn-sm btn-primary"
                                 onClick={() =>
-                                  navigate(`/quotations/${round.quotationId}/edit`)
+                                  navigate(
+                                    `/quotations/${round.quotationId}/edit`
+                                  )
                                 }
                               >
                                 <FaEdit size={15} />
@@ -492,32 +836,31 @@ export default function ClientLead() {
                               </Link>
                             )}
 
-                            {/* ⭐ STEP 1: show QUOTE PDF download when RATE is approved */}
                             {isRateApproved && (
                               <button
-                                className="btn btn-sm btn-outline-secondary"
+                                className="btn btn-sm btn-outline-danger"
                                 onClick={() =>
                                   handleShowPDFPreview(round.quotationId)
                                 }
-                                style={{ color: "red" }}
+
                               >
-                                <FaDownload size={15} />
+                                <FaDownload />
                               </button>
                             )}
 
-                            {/* ✅ DOWNLOAD PO – only if PO exists AND quotation accepted */}
-                            {round.roundStatus === "accepted" && hasClientPO && (
-                              <button
-                                className="btn btn-sm btn-dark text-white"
-                                onClick={() =>
-                                  handleShowPDFClientPO(round.quotationId)
-                                }
-                                title="Download Client PO"
-                              >
-                                <FaUser size={15} className="me-1" />
-                                Download PO
-                              </button>
-                            )}
+                            {round.roundStatus === "accepted" &&
+                              hasClientPO && (
+                                <button
+                                  className="btn btn-sm btn-dark text-white"
+                                  onClick={() =>
+                                    handleShowPDFClientPO(round.quotationId)
+                                  }
+                                  title="Download Client PO"
+                                >
+                                  <FaUser size={15} className="me-1" />
+                                  Download PO
+                                </button>
+                              )}
                           </td>
                         </tr>
                       );
@@ -526,7 +869,6 @@ export default function ClientLead() {
                 </tbody>
               </table>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="d-flex justify-content-center p-3">
                   <Pagination>
@@ -565,15 +907,16 @@ export default function ClientLead() {
         </Col>
       </Row>
 
-      {/* QUOTE PDF PREVIEW */}
+      {/* QUOTE PDF PREVIEW (Admin approval mode, unchanged) */}
       <PDFPreview
         show={showPDFPreview}
         onHide={handleClosePDFPreview}
         quoteId={selectedQuoteId}
+        onAdminApproved={handleAdminApprovedFromModal}
       />
 
       {/* CLIENT PO PDF PREVIEW / DOWNLOAD */}
-      <PDFClientPO
+      <POPreviewModal
         show={showPDFClientPO}
         onHide={handleClosePDFClientPO}
         poData={selectedPO}

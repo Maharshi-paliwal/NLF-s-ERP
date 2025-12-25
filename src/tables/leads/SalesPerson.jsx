@@ -96,16 +96,17 @@ export default function SalesPerson() {
 
   // 👉 View details (still passes leadId + salespersonId)
   const handleViewLeadDetails = (lead) => {
-    navigate(`/sales-details/${lead.leadId}`, {
-      state: {
-        leadId: lead.leadId, // this is the lead_list.id
-        salespersonId: lead.salespersonId,
-        clientName: lead.clientName,
-        salespersonName: lead.salespersonName,
-        stage: lead.stage, // may be undefined, that's ok
-        remark: lead.remark, // may be undefined, that's ok
-      },
-    });
+    navigate(`/sales-details/${lead.leadListId}`, {
+  state: {
+    leadId: lead.leadListId,   // ✅ lead_list.id ONLY
+    salespersonId: lead.salespersonId,
+    clientName: lead.clientName,
+    salespersonName: lead.salespersonName,
+    stage: lead.stage,
+    remark: lead.remark,
+  },
+});
+
     toast.success(`Fetching details for ${lead.clientName}...`);
   };
 

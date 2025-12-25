@@ -19,6 +19,22 @@ import { Link, useNavigate } from "react-router-dom";
 
 const API_BASE = "https://nlfs.in/erp/index.php/Erp";
 
+// Stage → color mapping (normalized lowercase keys)
+const STAGE_COLOR_MAP = {
+  upcoming: "#0d6efd",          // Blue
+  tender: "#0dcaf0",            // Cyan
+  specified: "#6f42c1",         // Purple
+
+  quotation: "#fd7e14",         // 🟠 Orange
+  negotiation: "#20c997",       // 🟢 Teal (UNIQUE, NEW)
+
+  "order recieved": "#198754",  // Green
+  closed: "#198754",            // Green
+  lost: "#dc3545",              // Red
+};
+
+
+
 // Helper: format date for display (dd-mm-yyyy)
 const formatDisplayDate = (dateString) => {
   if (
@@ -43,46 +59,18 @@ const formatDisplayDate = (dateString) => {
   return dateString;
 };
 
+// normalize helper: ensure id is always a string
+const normalizeEmpId = (val) => {
+  if (val === null || val === undefined) return "";
+  return String(val || "").trim();
+};
+
 // normalize a stage just for comparison
 const normalizeStage = (s) => (s || "").toLowerCase().trim();
 
-// Map stage to color
-const getStageColor = (stageRaw) => {
-  const stage = normalizeStage(stageRaw);
-  const stageMap = {
-    submit: "#198754",
-    finalised: "#0d6efd",
-    civil: "#ffc107",
-    lost: "#dc3545",
-  };
-  return stageMap[stage] || "#ffffff";
-};
-
-// Allowed transitions (normalized names only)
-const getAllowedStagesForLead = (currentStageNorm) => {
-  const stage = currentStageNorm || "civil";
-
-  if (stage === "civil") {
-    // default / civil → can move to finalised or lost
-    return ["civil", "finalised", "lost"];
-  }
-
-  if (stage === "finalised") {
-    // finalised → only submit
-    return ["finalised", "submit"];
-  }
-
-  if (stage === "submit" || stage === "lost") {
-    // locked
-    return [stage];
-  }
-
-  return [stage];
-};
-
 export default function LeadGeneration() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSalesperson, setSelectedSalesperson] = useState("");
+  const [selectedSalesperson, setSelectedSalesperson] = useState(""); // will store empId
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [timeFilter, setTimeFilter] = useState("all");
@@ -101,6 +89,67 @@ export default function LeadGeneration() {
   const [selectedLeadForNextVisit, setSelectedLeadForNextVisit] =
     useState(null);
   const [nextVisitDate, setNextVisitDate] = useState(null);
+  const [departmentMap, setDepartmentMap] = useState({});
+
+  // Create a map of stage names to their order in the progression
+  const [stageOrderMap, setStageOrderMap] = useState({});
+  // Track if we have a "lost" stage in our options
+  const [lostStageValue, setLostStageValue] = useState("");
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await fetch(
+          "https://nlfs.in/erp/index.php/Erp/department_list"
+        );
+        const data = await res.json();
+
+        if (data.status === "true" && data.success === "1") {
+          const map = {};
+          data.data.forEach((d) => {
+            map[d.dpt_id] = d.department;
+          });
+          setDepartmentMap(map);
+        }
+      } catch (err) {
+        console.error("Failed to fetch departments", err);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
+
+const FINAL_SUCCESS_STAGES = new Set([
+  "closed",
+]);
+
+
+
+  // Update stageOrderMap and lostStageValue whenever stageOptions changes
+  useEffect(() => {
+    if (stageOptions.length > 0) {
+      // Create a map of stage names to their order
+      const orderMap = {};
+      let lostStage = "";
+  
+      
+      stageOptions.forEach((stage, index) => {
+        const stageName = normalizeStage(stage.stage || stage.name || "");
+        if (stageName) {
+          orderMap[stageName] = index;
+          
+          // Check if this is the "lost" stage
+          if (stageName === "lost") {
+            lostStage = stage.stage || stage.name;
+          }
+        }
+      });
+      
+      setStageOrderMap(orderMap);
+      setLostStageValue(lostStage);
+    }
+  }, [stageOptions]);
 
   const itemsPerPage = 10;
   const navigate = useNavigate();
@@ -177,6 +226,20 @@ export default function LeadGeneration() {
     fetchSalespersons();
   }, []);
 
+  useEffect(() => {
+    if (!leadLoading && !salespersonLoading) {
+      console.log(
+        "DEBUG salespersons:",
+        salespersonOptions.map((s) => ({ emp_id: s.emp_id, name: s.name }))
+      );
+      console.log(
+        "DEBUG leads:",
+        leads.slice(0, 10).map((l) => ({ leadId: l.leadId, empId: l.empId, salespersonName: l.salespersonName }))
+      );
+      console.log("selectedSalesperson currently:", selectedSalesperson);
+    }
+  }, [leadLoading, salespersonLoading, salespersonOptions, leads, selectedSalesperson]);
+
   const fetchLeads = async () => {
     setLeadLoading(true);
     try {
@@ -185,9 +248,18 @@ export default function LeadGeneration() {
 
       if (data.status && data.success === "1") {
         const normalized = (data.data || []).map((row) => {
-          // Default stage to "civil" if empty/null
           const rawStage = row.stage && String(row.stage).trim();
-          const finalStage = rawStage && rawStage !== "" ? row.stage : "civil";
+          const finalStage = rawStage && rawStage !== "" ? row.stage : "upcoming"; // Default to first stage
+
+          // Try many possible fields for salesperson ID from lead row
+          const empIdFromLead =
+            row.emp_id ||
+            row.sales_person_id ||
+            row.salesperson_id ||
+            row.employee_id ||
+            row.empId ||
+            row.sales_person || // fallback (not ideal)
+            "";
 
           return {
             key: row.id,
@@ -199,9 +271,9 @@ export default function LeadGeneration() {
             branch: row.branch,
             contractor: row.contractor,
             department: row.department,
-            salespersonName: row.sales_person,
-            empId: row.emp_id || row.sales_person_id || "",
-            stage: finalStage, // keep API value
+            salespersonName: row.sales_person, // keep original name
+            empId: normalizeEmpId(empIdFromLead),
+            stage: finalStage,
             remark: row.remark,
             visitDate: row.visiting_date,
             nextVisitDate: row.nxt_visit_date,
@@ -230,7 +302,13 @@ export default function LeadGeneration() {
       const data = await res.json();
 
       if (data.status && data.success === "1") {
-        setStageOptions(data.data || []);
+        // Sort stages by their ID to maintain order
+        const sortedStages = (data.data || []).sort((a, b) => {
+          const idA = parseInt(a.stage_id || a.id || 0);
+          const idB = parseInt(b.stage_id || b.id || 0);
+          return idA - idB;
+        });
+        setStageOptions(sortedStages);
       } else {
         toast.error(data.message || "Failed to fetch stages.");
       }
@@ -250,8 +328,21 @@ export default function LeadGeneration() {
       });
       const data = await res.json();
 
-      if (data.status && data.success === "1") {
-        setSalespersonOptions(data.data || []);
+      if (data.status && data.success === "1" && Array.isArray(data.data)) {
+        // Normalize each salesperson object to { emp_id, name }
+        const normalized = data.data.map((sp) => {
+          // try common id fields: emp_id, id, employee_id
+          const id =
+            sp.emp_id || sp.id || sp.employee_id || sp.empId || sp.salesperson_id || "";
+          const name = sp.name || sp.full_name || sp.emp_name || sp.username || "";
+          return {
+            ...sp,
+            emp_id: normalizeEmpId(id),
+            name: name,
+          };
+        });
+
+        setSalespersonOptions(normalized);
       } else {
         toast.error(data.message || "Failed to fetch salespersons.");
       }
@@ -307,28 +398,47 @@ export default function LeadGeneration() {
     const periodRange = timeFilter !== "all" ? getPeriodRange(timeFilter) : null;
 
     return leads.filter((item) => {
+      // 🔴 salesperson filter based on empId (same idea as SalesDashboard)
       if (
         selectedSalesperson &&
-        item.salespersonName !== selectedSalesperson
+        String(item.empId) !== String(selectedSalesperson)
       ) {
         return false;
       }
 
+      // date range filter
       if (startDate || endDate) {
         const itemDate = parseDate(item.visitDate);
         if (!itemDate) return false;
 
         const start = startDate
-          ? new Date(startDate.setHours(0, 0, 0, 0))
+          ? new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate(),
+              0,
+              0,
+              0,
+              0
+            )
           : null;
         const end = endDate
-          ? new Date(endDate.setHours(23, 59, 59, 999))
+          ? new Date(
+              endDate.getFullYear(),
+              endDate.getMonth(),
+              endDate.getDate(),
+              23,
+              59,
+              59,
+              999
+            )
           : null;
 
         if (start && itemDate < start) return false;
         if (end && itemDate > end) return false;
       }
 
+      // monthly/quarterly/yearly filter
       if (periodRange && item.visitDate) {
         const itemDate = parseDate(item.visitDate);
         if (
@@ -362,22 +472,60 @@ export default function LeadGeneration() {
     navigate(`/view-leads/${leadId}`);
   };
 
-  // Enforce workflow, but we still send the raw value from API
+  // Get the allowed next stages for a lead based on current stage
+const getAllowedStagesForLead = (currentStageNorm) => {
+  const currentOrder = stageOrderMap[currentStageNorm];
+  if (currentOrder === undefined) return [];
+
+  // Always allow current stage
+  const allowedStages = [currentStageNorm];
+
+  // 🔒 Closed is the only true terminal success stage
+  if (FINAL_SUCCESS_STAGES.has(currentStageNorm)) {
+    return allowedStages;
+  }
+
+  // Add next stage (Order Recieved → Closed works here)
+  const nextStage =
+    stageOptions[currentOrder + 1]?.stage ||
+    stageOptions[currentOrder + 1]?.name;
+
+  const nextStageNorm = normalizeStage(nextStage);
+  if (nextStageNorm) {
+    allowedStages.push(nextStageNorm);
+  }
+
+  // ❌ Lost is NOT allowed after Order Recieved or Closed
+  if (
+    currentStageNorm !== "lost" &&
+    currentStageNorm !== "order recieved"
+  ) {
+    allowedStages.push("lost");
+  }
+
+  return allowedStages;
+};
+
+
+
+  // Enforce progressive workflow with exception for "lost" stage
   const handleStageChange = async (leadId, newStageRaw) => {
     const newStageNorm = normalizeStage(newStageRaw);
 
     const lead = leads.find((l) => String(l.leadId) === String(leadId));
-    const prevRaw = leadStages[leadId] ?? lead?.stage ?? "civil";
-    const prevNorm = normalizeStage(prevRaw) || "civil";
+    const prevRaw = leadStages[leadId] ?? lead?.stage ?? "upcoming";
+    const prevNorm = normalizeStage(prevRaw) || "upcoming";
 
-    if (prevNorm === "submit" || prevNorm === "lost") {
-      toast.error("This lead is locked and its stage cannot be changed.");
-      return;
-    }
-
+    // Get the allowed stages for the current stage
     const allowedNorm = getAllowedStagesForLead(prevNorm);
+    
+    // Check if the new stage is allowed
     if (!allowedNorm.includes(newStageNorm)) {
-      toast.error("Invalid stage transition based on workflow.");
+      if (newStageNorm === "lost") {
+        toast.error("Cannot move to 'lost' stage from this stage.");
+      } else {
+        toast.error("Invalid stage transition. You can only move to the next stage in sequence or to 'lost'.");
+      }
       return;
     }
 
@@ -438,14 +586,21 @@ export default function LeadGeneration() {
     }
   };
 
-  // ---------- ROW RENDER WITH DISABLED OPTIONS ----------
+  // ---------- ROW RENDER WITH DISABLED OPTIONS (MUTED LOOK) ----------
   const renderRow = (item, index) => {
-    const rawStage = leadStages[item.leadId] ?? item.stage ?? "civil";
-    const normStage = normalizeStage(rawStage) || "civil";
-    const stageColor = getStageColor(rawStage);
+    const rawStage = leadStages[item.leadId] ?? item.stage ?? "upcoming";
+    const normStage = normalizeStage(rawStage) || "upcoming";
+    const stageColor =
+  STAGE_COLOR_MAP[normStage] || "#0d6efd";
 
+    
+    // Get the stage order to determine if it's the last stage
+    const stageOrder = stageOrderMap[normStage];
+    const isLastStage = stageOrder !== undefined && stageOrder === stageOptions.length - 1;
+    const isLostStage = normStage === "lost";
+
+    // Get allowed stages for this lead
     const allowedNorm = getAllowedStagesForLead(normStage);
-    const isLocked = normStage === "submit" || normStage === "lost";
 
     return (
       <tr key={item.key}>
@@ -453,43 +608,56 @@ export default function LeadGeneration() {
         <td>{item.projectName}</td>
         <td>{item.architectName}</td>
         <td>{item.contractor}</td>
-        <td>{item.department}</td>
+        <td>{departmentMap[item.department] || item.department}</td>
         <td>
           <Form.Select
             size="sm"
             value={rawStage}
             onChange={(e) => handleStageChange(item.leadId, e.target.value)}
             className="lead-stage-select"
-            disabled={isLocked}
-            style={{
-              width: "120px",
-              textTransform: "capitalize",
-              backgroundColor: stageColor,
-              color: normStage ? "#ffffff" : "#000000",
-              border: "1px solid #ced4da",
-            }}
+            disabled={isLastStage || isLostStage}
+           style={{
+  width: "120px",
+  textTransform: "capitalize",
+  backgroundColor: isLostStage
+    ? STAGE_COLOR_MAP.lost
+    : isLastStage
+    ? "#6c757d"
+    : stageColor,
+  color: "#ffffff",
+  border: "1px solid #ced4da",
+}}
+
             title={
-              isLocked
-                ? "This lead is locked and cannot be changed."
+              isLostStage
+                ? "This lead is lost and cannot be changed."
+                : isLastStage
+                ? "This lead is in the final stage and cannot be changed."
                 : "Change stage"
             }
           >
-            <option value="">Stage</option>
             {!stageLoading &&
               stageOptions.map((stg, idx) => {
-                const label = stg.stage || stg.name || `Stage ${idx + 1}`;
+                const label = (stg.stage || stg.name || `Stage ${idx + 1}`).toString();
                 const value = stg.stage || stg.name || label; // raw API value
                 const labelNorm = normalizeStage(label);
 
                 // 🔒 Disable options that aren't allowed according to workflow
-                const disabled =
-                  !allowedNorm.includes(labelNorm) || isLocked;
+                const disabled = !allowedNorm.includes(labelNorm);
+
+                // Style: muted appearance for disabled options
+                const optionStyle = {
+                  color: disabled ? "#6c757d" : undefined, // bootstrap muted gray
+                  opacity: disabled ? 0.65 : 1,
+                  textTransform: "capitalize",
+                };
 
                 return (
                   <option
-                    key={stg.stage_id || stg.id || idx}
+                    key={stg.stage_id || stg.id || `${idx}-${labelNorm}`}
                     value={value}
                     disabled={disabled}
+                    style={optionStyle}
                   >
                     {label}
                   </option>
@@ -538,6 +706,7 @@ export default function LeadGeneration() {
                   </Card.Title>
                 </Col>
                 <Col className="d-flex justify-content-end align-items-center gap-2">
+                  {/* Salesperson filter (by empId) */}
                   <Form.Select
                     value={selectedSalesperson}
                     onChange={(e) => {
@@ -550,7 +719,7 @@ export default function LeadGeneration() {
                     {salespersonLoading && <option>Loading...</option>}
                     {!salespersonLoading &&
                       salespersonOptions.map((sp) => (
-                        <option key={sp.emp_id} value={sp.name}>
+                        <option key={sp.emp_id} value={sp.emp_id}>
                           {sp.name}
                         </option>
                       ))}

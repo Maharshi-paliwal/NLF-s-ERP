@@ -33,19 +33,17 @@ function Sidebar({ collapsed, onClose }) {
 
   // --- Back Office Active States ---
   const isWorkOrderActive =
-    location.pathname.includes("/workorder") ||
-    location.pathname.includes("/workorderform");
+  location.pathname.includes("/workorder") ||
+  location.pathname.includes("/workorderform");
 
-  const isPoVendorActive = location.pathname.includes("/povendor") ||
-  location.pathname.includes("/annextureviewer") ||
-  location.pathname.includes("/annextureform");
+const isQuotesBackOfficeActive = 
+  location.pathname.includes("/quotesbackoffice");
 
+const isPoVendorActive = location.pathname.includes("/povendor") ||
+location.pathname.includes("/annextureviewer") ||
+location.pathname.includes("/annextureform");
 
-    
-
-
-  const isBackOfficeActive = isWorkOrderActive || isPoVendorActive;
-
+const isBackOfficeActive = isWorkOrderActive || isPoVendorActive || isQuotesBackOfficeActive;
   // --- Accounts Active States ---
 //   const isAccountsPageActive = location.pathname.includes ("/accounts")||
 //   location.pathname.includes("/workorderformaccounts/:workOrderId");
@@ -177,7 +175,7 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
                Department
             </NavLink>
 
-            <NavLink to="/brandmaster" className="nav-link">
+            {/* <NavLink to="/brandmaster" className="nav-link">
                Brand
             </NavLink> 
               <NavLink to="/productmaster" className="nav-link">
@@ -185,7 +183,20 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
             </NavLink>  
             <NavLink to="/subproductmaster" className="nav-link">
                Sub-Product
+            </NavLink> */}
+             <NavLink to="/ratemaster" className="nav-link">
+               Rate
             </NavLink>
+             <NavLink to="/combinedmaster" className="nav-link">
+                Product
+            </NavLink>
+             <NavLink to="/signature" className="nav-link">
+                Signature
+            </NavLink>
+              <NavLink to="/vendormaster" className="nav-link">
+                Vendors
+            </NavLink>
+            
           </div>
         )}
 
@@ -270,46 +281,46 @@ const isAccountsOrdersActive = location.pathname.startsWith("/workorderformaccou
             </span>
           </div>
         </NavLink>
-        {openBackOffice && (
-          <div className="submenu ms-4">
-            <NavLink
-              to="/quotesbackoffice"
-              className={`nav-link ${isWorkOrderActive ? "active" : ""}`}
-            >
-              <img
-                src="/icons/booking.png"
-                alt=""
-                className="me-2"
-                style={{ width: "22px" }}
-              />
-              Quotation
-            </NavLink>
-            <NavLink
-              to="/workorder"
-              className={`nav-link ${isWorkOrderActive ? "active" : ""}`}
-            >
-              <img
-                src="/icons/booking.png"
-                alt=""
-                className="me-2"
-                style={{ width: "22px" }}
-              />
-              Work Order
-            </NavLink>
-            <NavLink
-              to="/povendor"
-              className={`nav-link ${isPoVendorActive ? "active" : ""}`}
-            >
-              <img
-                src="/icons/supplier.png"
-                alt=""
-                className="me-2"
-                style={{ width: "25px" }}
-              />
-              PO Vendor
-            </NavLink>
-          </div>
-        )}
+       {openBackOffice && (
+  <div className="submenu ms-4">
+    <NavLink
+      to="/quotesbackoffice"
+      className={`nav-link ${isQuotesBackOfficeActive ? "active" : ""}`}
+    >
+      <img
+        src="/icons/booking.png"
+        alt=""
+        className="me-2"
+        style={{ width: "22px" }}
+      />
+      Quotation
+    </NavLink>
+    <NavLink
+      to="/workorderpage"
+      className={`nav-link ${isWorkOrderActive ? "active" : ""}`}
+    >
+      <img
+        src="/icons/booking.png"
+        alt=""
+        className="me-2"
+        style={{ width: "22px" }}
+      />
+      Work Order
+    </NavLink>
+    <NavLink
+      to="/povendor"
+      className={`nav-link ${isPoVendorActive ? "active" : ""}`}
+    >
+      <img
+        src="/icons/supplier.png"
+        alt=""
+        className="me-2"
+        style={{ width: "25px" }}
+      />
+      PO Vendor
+    </NavLink>
+  </div>
+)}
 
         {/* Accounts */}
       <NavLink

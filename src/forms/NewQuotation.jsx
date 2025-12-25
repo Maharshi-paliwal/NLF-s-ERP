@@ -1,25 +1,65 @@
 // src/forms/NewQuotation.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
-import { Container, Row, Col, Card, Form, Button, Spinner, Alert } from "react-bootstrap";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Form,
+  Button,
+  Spinner,
+  Alert,
+} from "react-bootstrap";
 import { FaPlus, FaMinus, FaArrowLeft } from "react-icons/fa";
 import axios from "axios";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 
 // Standard Terms & Conditions
-const standardTerms = `• GST 18% as actual
-• Payment 50% advance with formal work order and 50% on readiness of material before dispatch.
-• Transportation charges Extra.
-• Unloading of material at clients end.
-• The above rates does not include any MS/Aluminium substructure required.
-• Safe storage for material to be provided by you at site with a locked room.
-• Providing & Fixing of Scaffolding should be at your end.
-• Mode of Measurement: Measurements shall be wall to wall.
-• Local transportation, loading & unloading of material from one area to another area on site at your end.
-• Suitable accommodation for site Engineer & hutment for labour to be provided by client along with lodging & boarding.
-• Validity of Quotation: 30 days.
-Hope you will find our offer most competitive and in order.`;
+// Standard Terms & Conditions (HTML markup to match client quote)
+const standardTerms = `
+<div class="nlf-terms-wrapper" style="font-family: Arial,Helvetica,sans-serif; font-size:12px; line-height:1.45; color:#111;">
+  <div style="border:2px solid #000; padding:10px 12px; margin-bottom:8px;">
+    <div style="font-weight:700; font-size:13px; margin-bottom:6px;">Commercial Terms:</div>
+    <div style="margin-left:6px;">
+      <div style="margin-bottom:6px;">• GST @18% extra</div>
+      <div style="margin-bottom:6px;">• <strong>Payment Terms:</strong></div>
+      <div style="margin-left:16px; margin-bottom:6px;">
+        Supply Terms: 10% advance payment against readiness of material before dispatch.
+      </div>
+      <div style="margin-left:16px; margin-bottom:6px;">
+        Installation Terms: 80% on installation of material, 10% after handover on a pro-rata basis, 5% as retention to be released after 12 months against submission of a Bank Guarantee.
+      </div>
+      <div style="margin-bottom:6px;">• Transportation charges are included in the above rate.</div>
+      <div style="margin-bottom:6px; color:#d32f2f; font-weight:700;">
+  • The above rates does not include any MS/Aluminium substructure required.
+</div>
+      <div style="margin-bottom:6px;">• Safe storage for the material to be provided by you at site with a locked room.</div>
+      <div style="margin-bottom:6px;">• Providing & fixing of scaffolding shall be in your scope. In case scaffolding material is provided, labour charges will be applicable at ₹100/- per sqm.</div>
+      <div style="margin-bottom:6px;">• All specifications of each product shall be approved by AAI before execution of the works.</div>
+      <div style="margin-bottom:6px;">• Mode of Measurement: Measurements will be considered based on the surface area.</div>
+      <div style="margin-bottom:6px;">• Suitable accommodation for site Engineer & hutment for labour to be provided by the client along with lodging & boarding.</div>
+      <div style="margin-bottom:6px;">• Validity of Quotation: 30 days.</div>
+    </div>
+    <div style="margin-top:8px; font-size:12px;">Hope you will find our offer most competitive and in order.</div>
+
+    <div style="margin-top:12px; display:flex; align-items:flex-end; justify-content:space-between;">
+      <div style="height:48px; width:140px; border:1px dashed #999; display:flex; align-items:center; justify-content:center; font-size:11px; color:#777;">
+        <img src="/extra/stamp.png" alt="stamp" style="max-height:42px; max-width:120px;" />
+      </div>
+      <div style="text-align:right; font-size:12px; font-weight:700;">For NLF Solutions Pvt Ltd</div>
+    </div>
+  </div>
+</div>
+`;
+
+
+// Helper function to capitalize the first letter of each word
+const capitalizeWords = (str) => {
+  if (!str) return str;
+  return str.replace(/\b\w/g, (char) => char.toUpperCase());
+};
 
 // Helper function to calculate totals
 const calculateTotals = (itemGroups, secondCarItems, secondCarAdditionalDetails) => {
@@ -104,6 +144,7 @@ const initialFormState = {
   customerCity: "",
   project: "",
   officeBranch: "",
+    quoteType: "direct", // "lead" | "direct"
   termsAndConditions: standardTerms,
   itemGroups: [
     {
@@ -115,11 +156,11 @@ const initialFormState = {
       rate: "",
       amount: "",
       product: "", // Product name
-      productId: "", // Product ID (prod_id)
+      productId: "", // Now we store product name also in productId for selects
       brand: "", // Brand name
-      brandId: "", // Brand ID
-      subProduct: "", // Sub-product name
-      subProductId: "", // Sub-product ID
+      brandId: "", // Brand name used as value
+      subProduct: "", // Sub-product (item_name)
+      subProductId: "", // Master row id
       installationDescription: "",
       installationUnit: "",
       installationQuantity: "",
@@ -127,11 +168,21 @@ const initialFormState = {
       installationAmount: "",
     },
   ],
-  commercialTerms: {
-    gst: "As applicable",
-    supplyTerms: "",
-    installationTerms: "",
-  },
+// Replace the existing commercialTerms object with this:
+commercialTerms: {
+  gst: "GST 18% as actual",
+  paymentTerms: "Payment 50% advance with formal work order and 50% on readiness of material before dispatch.",
+  transportationCharges: "Transportation charges Extra.",
+  unloading: "Unloading of material at clients end.",
+  msAluminiumExclusion: "The above rates does not include any MS/Aluminium substructure required.",
+  safeStorage: "Safe storage for material to be provided by you at site with a locked room.",
+  scaffolding: "Providing & Fixing of Scaffolding should be at your end.",
+  modeOfMeasurement: "Mode of Measurement: Measurements shall be wall to wall.",
+  localTransportation: "Local transportation, loading & unloading of material from one area to another area on site at your end.",
+  accommodation: "Suitable accommodation for site Engineer & hutment for labour to be provided by client along with lodging & boarding.",
+  validity: "Validity of Quotation: 30 days.",
+  closing: "Hope you will find our offer most competitive and in order."
+},
   secondCarItems: [
     {
       id: `sc-item-${Date.now() + 1}`,
@@ -144,11 +195,62 @@ const initialFormState = {
     },
   ],
   secondCarAdditionalDetails: [
-    { id: `sc-addl-${Date.now() + 2}`, description: "", unit: "", quantity: "", rate: "", amount: "" },
+    {
+      id: `sc-addl-${Date.now() + 2}`,
+      description: "",
+      unit: "",
+      quantity: "",
+      rate: "",
+      amount: "",
+    },
   ],
   revise: "", // No revision initially
   isApproved: false, // Track approval status
 };
+
+// ✅ helpers used in submit for both add & edit
+const getFilledItemGroups = (itemGroups) => {
+  return itemGroups.filter((group) => {
+    const hasProduct = group.product && group.product.trim() !== "";
+    const hasQuantity = group.quantity && parseFloat(group.quantity) > 0;
+    const hasRate = group.rate && parseFloat(group.rate) > 0;
+    const hasUnit = group.unit && group.unit.trim() !== "";
+    return hasProduct && hasQuantity && hasRate && hasUnit;
+  });
+};
+
+const buildItemsArray = (groups) => {
+  const calculateAmount = (qty, rate) => {
+    const quantity = parseFloat(qty) || 0;
+    const rateVal = parseFloat(rate) || 0;
+    return (quantity * rateVal).toFixed(2);
+  };
+
+  return groups.map((group) => {
+    const itemAmount =
+      group.amount || calculateAmount(group.quantity, group.rate);
+    const instAmount =
+      group.installationAmount ||
+      calculateAmount(group.installationQuantity, group.installationRate);
+
+    return {
+      brand: group.brand || "",                 // ✅ ADD THIS
+      product: group.product,                   // g3_category
+      sub_product: group.subProduct || "",      // item_name
+      desc: group.description || "",
+      unit: group.unit,
+      qty: group.quantity,
+      rate: group.rate,
+      amt: itemAmount,
+      inst_unit: group.installationUnit || group.unit,
+      inst_qty: group.installationQuantity || "0",
+      inst_rate: group.installationRate || "0",
+      inst_amt: instAmount,
+      total: (parseFloat(itemAmount) + parseFloat(instAmount)).toFixed(2),
+    };
+  });
+};
+
 
 export default function NewQuotation() {
   const { quotationId } = useParams();
@@ -156,6 +258,13 @@ export default function NewQuotation() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const editorRef = useRef(null);
+
+  // MASTER LIST from single GET API
+  const [masterItems, setMasterItems] = useState([]);
+  const [isLoadingMasterItems, setIsLoadingMasterItems] = useState(true);
+
+  const [characterCount, setCharacterCount] = useState(0);
+  const MAX_CHARACTER_LIMIT = 2000;
 
   // === MODE DETECTION ===
   const modeDetection = useMemo(() => {
@@ -174,6 +283,7 @@ export default function NewQuotation() {
 
   const { isEditMode, isViewMode, isNewQuotation, isViewOnly, isFullyEditable } =
     modeDetection;
+
   const [formData, setFormData] = useState(initialFormState);
   const [nextQuoteNumber, setNextQuoteNumber] = useState("");
   const [totals, setTotals] = useState({
@@ -190,14 +300,85 @@ export default function NewQuotation() {
   const [editorData, setEditorData] = useState(standardTerms);
   const [editorError, setEditorError] = useState(false);
   const [baseQuoteId, setBaseQuoteId] = useState(""); // Store base quote ID without revise
-  const [productList, setProductList] = useState([]); // Store products from API
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [subProductList, setSubProductList] = useState([]); // Store sub-products from API
-  const [isLoadingSubProducts, setIsLoadingSubProducts] = useState(true);
   const [branchList, setBranchList] = useState([]); // Store branches from API
   const [isLoadingBranches, setIsLoadingBranches] = useState(true);
-  const [brandList, setBrandList] = useState([]); // Store brands from API
-  const [isLoadingBrands, setIsLoadingBrands] = useState(true);
+
+  // ✅ NEW: track whether admin has approved the rate
+  const [isRateApproved, setIsRateApproved] = useState(false);
+
+  // ------- MASTER API (Brand + Product + SubProduct + Rate) ----------
+  useEffect(() => {
+    const fetchMasterItems = async () => {
+      try {
+        setIsLoadingMasterItems(true);
+        const res = await fetch(
+          "https://nlfs.in/erp/index.php/Api/list_mst_sub_product",
+          {
+            method: "GET",
+          }
+        );
+        const data = await res.json();
+        const statusTrue = data.status === "true" || data.status === true;
+        const successTrue = data.success === "1" || data.success === 1;
+        if (statusTrue && successTrue && data.data) {
+          setMasterItems(data.data);
+        } else {
+          console.error("Failed to load master items:", data);
+          setError("Failed to load product master list.");
+        }
+      } catch (err) {
+        console.error("Error fetching master items:", err);
+        setError("Error fetching product master list.");
+      } finally {
+        setIsLoadingMasterItems(false);
+      }
+    };
+    fetchMasterItems();
+  }, []);
+
+  // Derived helpers from masterItems
+  const brandOptions = useMemo(() => {
+    const set = new Set();
+    masterItems.forEach((item) => {
+      if (item.brand) set.add(item.brand);
+    });
+    return Array.from(set);
+  }, [masterItems]);
+
+  const getProductOptions = (brandName) => {
+    const set = new Set();
+    masterItems.forEach((item) => {
+      if (
+        (!brandName || item.brand === brandName) &&
+        item.g3_category &&
+        item.g3_category.trim() !== ""
+      ) {
+        set.add(item.g3_category);
+      }
+    });
+    return Array.from(set);
+  };
+
+  const getSubProductOptions = (brandName, productName) => {
+    const filtered = masterItems.filter((item) => {
+      const matchesBrand = !brandName || item.brand === brandName;
+      const matchesProduct = !productName || item.g3_category === productName;
+      return matchesBrand && matchesProduct;
+    });
+
+    // Deduplicate by id
+    const seen = new Set();
+    const result = [];
+    filtered.forEach((item) => {
+      const key = String(item.id);
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
+    });
+
+    return result;
+  };
 
   // Initialize editor data when formData changes
   useEffect(() => {
@@ -206,19 +387,17 @@ export default function NewQuotation() {
     }
   }, [formData.termsAndConditions]);
 
-  // Update quotation number when revise changes (only in edit mode)
+  // Update quotation number when revise changes (only in edit mode AND when rate approved)
   useEffect(() => {
-    if (isEditMode && baseQuoteId && formData.revise) {
+    if (isEditMode && isRateApproved && baseQuoteId && formData.revise) {
       const quotationNo = `${baseQuoteId}-${formData.revise}`;
       setFormData((prev) => {
-        // Only update if the value actually changed
         if (prev.quotationNo !== quotationNo) {
           return { ...prev, quotationNo };
         }
         return prev;
       });
     } else if (isNewQuotation && baseQuoteId) {
-      // For new quotations, just use the base quote ID without revision
       setFormData((prev) => {
         if (prev.quotationNo !== baseQuoteId) {
           return { ...prev, quotationNo: baseQuoteId };
@@ -226,7 +405,7 @@ export default function NewQuotation() {
         return prev;
       });
     }
-  }, [baseQuoteId, formData.revise, isEditMode, isNewQuotation]);
+  }, [baseQuoteId, formData.revise, isEditMode, isNewQuotation, isRateApproved]);
 
   // Recalculate totals
   useEffect(() => {
@@ -252,7 +431,6 @@ export default function NewQuotation() {
         );
         if (response.data.status === "true" && response.data.data) {
           setBranchList(response.data.data);
-          // Set the first branch as default if no branch is selected
           if (response.data.data.length > 0 && !formData.officeBranch) {
             setFormData((prev) => ({
               ...prev,
@@ -270,78 +448,7 @@ export default function NewQuotation() {
       }
     };
     fetchBranches();
-  }, []);
-
-  // Fetch brand list from API
-  useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        setIsLoadingBrands(true);
-        const response = await axios.post(
-          "https://nlfs.in/erp/index.php/Api/list_brand",
-          {
-            nxt_visit_date: "1-09-2030",
-            emp_id: "3",
-            lead_id: "35",
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        if (response.data.status === "true" && response.data.data) {
-          setBrandList(response.data.data);
-        } else {
-          setError("Failed to load brands.");
-        }
-      } catch (error) {
-        console.error("Error fetching brands:", error);
-        setError("Failed to load brand list.");
-      } finally {
-        setIsLoadingBrands(false);
-      }
-    };
-    fetchBrands();
-  }, []);
-
-  // ✅ Fetch product list from API USING SAME PARAMS AS IN SCREENSHOT
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoadingProducts(true);
-        const response = await axios.post(
-          "https://nlfs.in/erp/index.php/Api/list_mst_product",
-          {
-            nxt_visit_date: "1-09-2030",
-            emp_id: "3",
-            lead_id: "35",
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        const data = response.data;
-        const statusTrue = data.status === true || data.status === "true";
-        const successTrue = data.success === true || data.success === "1";
-
-        if (statusTrue && successTrue && data.data) {
-          setProductList(data.data);
-        } else {
-          setError("Failed to load products.");
-        }
-      } catch (err) {
-        console.error("Error fetching products:", err);
-        setError("Error fetching products.");
-      } finally {
-        setIsLoadingProducts(false);
-      }
-    };
-
-    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch unit list from API
@@ -365,36 +472,13 @@ export default function NewQuotation() {
     fetchUnits();
   }, []);
 
-  // Fetch sub-product list from API (matching SubProduct.jsx implementation)
-  useEffect(() => {
-    const fetchSubProducts = async () => {
-      setIsLoadingSubProducts(true);
-      try {
-        const res = await fetch(
-          "https://nlfs.in/erp/index.php/Api/list_mst_sub_product",
-          {
-            method: "POST",
-          }
-        );
-        const data = await res.json();
-
-        if (data.status === "true" && data.success === "1") {
-          setSubProductList(data.data);
-        } else {
-          setError("Failed to fetch sub-products.");
-        }
-      } catch (err) {
-        setError("Error fetching sub-products.");
-      } finally {
-        setIsLoadingSubProducts(false);
-      }
-    };
-    fetchSubProducts();
-  }, []);
-
   // Load data based on mode
   useEffect(() => {
     let isMounted = true;
+
+    // Wait for masterItems to load before trying to map existing items
+    if (isLoadingMasterItems) return;
+
     // If EDIT MODE or VIEW MODE - fetch data from API
     if ((isEditMode || isViewMode || isViewOnly) && quotationId) {
       const fetchQuotationData = async () => {
@@ -402,11 +486,11 @@ export default function NewQuotation() {
           setIsLoadingData(true);
           setError(null);
           console.log("Fetching quotation with ID:", quotationId);
-          // Send as JSON (matching Postman format)
+
           const response = await axios.post(
             "https://nlfs.in/erp/index.php/Nlf_Erp/get_quotation_by_id",
             {
-              quote_id: String(quotationId), // Convert to string like Postman
+              quote_id: String(quotationId),
             },
             {
               headers: {
@@ -415,83 +499,117 @@ export default function NewQuotation() {
             }
           );
           console.log("Fetched quotation data for edit/view:", response.data);
-          // FIXED: Check for both boolean and string status values
+
           const isSuccess =
             response.data.status === true ||
             response.data.status === "true";
           if (isMounted && isSuccess && response.data.data) {
             const quotationData = response.data.data;
-            // Handle the API response structure correctly
-            // The API returns a single object with an items array
             const mainQuotationData = quotationData;
             const itemsArray = mainQuotationData.items || [];
 
-            // Transform API data to form structure with proper product/sub-product IDs
+            // ✅ set rate approved flag from DB field
+            const rateApproved =
+              mainQuotationData.rate_approval === "yes" ||
+              mainQuotationData.rate_approval === "Yes" ||
+              mainQuotationData.rate_approval === 1 ||
+              mainQuotationData.rate_approval === "1" ||
+              mainQuotationData.rate_approval === true;
+
+            setIsRateApproved(rateApproved);
+
             const itemGroups = itemsArray.map((item, index) => {
-              // Find matching product by name
-              const productMatch = productList.find(
-                (p) => p.product_name === item.product
-              );
-              // Find matching sub-product by name and product ID
-              const subProductMatch = subProductList.find(
-                (sp) =>
-                  sp.sub_prod_name === item.sub_product &&
-                  String(sp.prod_id) === String(productMatch?.prod_id)
-              );
+              // try to match master row by product + sub_product
+              const masterMatch = masterItems.find((m) => {
+                const prodMatch =
+                  m.g3_category === item.product ||
+                  m.item_name === item.product;
+                const subMatch =
+                  m.item_name === item.sub_product ||
+                  m.g4_sub_category === item.sub_product;
+                return prodMatch && subMatch;
+              });
+
+              const brandName = masterMatch?.brand || "";
+              const productName =
+                item.product || masterMatch?.g3_category || "";
+              const subProductName =
+                item.sub_product || masterMatch?.item_name || "";
 
               return {
                 id: `group-${Date.now()}-${index}`,
                 quote_id: mainQuotationData.quote_id,
-                description: item.desc || "",
-                unit: item.unit || "",
+                description:
+                  item.desc || masterMatch?.specification || "",
+                unit: item.unit || masterMatch?.uom || "",
                 quantity: item.qty || "",
-                rate: item.rate || "",
+                rate: item.rate || masterMatch?.rate || "",
                 amount: item.amt || "",
-                product: item.product || "",
-                productId: productMatch ? String(productMatch.prod_id) : "",
-                brand: productMatch?.brand || "",
-                brandId: productMatch?.brand_id || "",
-                subProduct: item.sub_product || "",
-                subProductId: subProductMatch ? String(subProductMatch.id) : "",
+                product: productName,
+                productId: productName,
+                brand: brandName,
+                brandId: brandName,
+                subProduct: subProductName,
+                subProductId: masterMatch ? String(masterMatch.id) : "",
                 installationDescription: "",
-                installationUnit: item.unit || "",
-                installationQuantity: item.qty || "",
+                installationUnit:
+                  item.inst_unit || item.unit || masterMatch?.uom || "",
+                installationQuantity: item.inst_qty || item.qty || "",
                 installationRate: item.inst_rate || "",
                 installationAmount: item.inst_amt || "",
               };
             });
 
-            // If no items in the array, create at least one item group with the main data
             if (itemGroups.length === 0) {
+              // fallback: build one row from mainQuotationData
+              const masterMatch = masterItems.find((m) => {
+                const prodMatch =
+                  m.g3_category === mainQuotationData.product ||
+                  m.item_name === mainQuotationData.product;
+                const subMatch =
+                  m.item_name === mainQuotationData.sub_product ||
+                  m.g4_sub_category === mainQuotationData.sub_product;
+                return prodMatch && subMatch;
+              });
+
+              const brandName = masterMatch?.brand || "";
+              const productName =
+                mainQuotationData.product || masterMatch?.g3_category || "";
+              const subProductName =
+                mainQuotationData.sub_product || masterMatch?.item_name || "";
+
               itemGroups.push({
                 id: `group-${Date.now()}`,
                 quote_id: mainQuotationData.quote_id,
-                description: mainQuotationData.desc || "",
-                unit: mainQuotationData.unit || "",
+                description:
+                  mainQuotationData.desc || masterMatch?.specification || "",
+                unit: mainQuotationData.unit || masterMatch?.uom || "",
                 quantity: mainQuotationData.qty || "",
-                rate: mainQuotationData.rate || "",
+                rate: mainQuotationData.rate || masterMatch?.rate || "",
                 amount: mainQuotationData.amt || "",
-                product: mainQuotationData.product || "",
-                productId: "",
-                brand: "",
-                brandId: "",
-                subProduct: mainQuotationData.sub_product || "",
-                subProductId: "",
+                product: productName,
+                productId: productName,
+                brand: brandName,
+                brandId: brandName,
+                subProduct: subProductName,
+                subProductId: masterMatch ? String(masterMatch.id) : "",
                 installationDescription: "",
-                installationUnit: mainQuotationData.inst_unit || "",
-                installationQuantity: mainQuotationData.inst_qty || "",
+                installationUnit:
+                  mainQuotationData.inst_unit ||
+                  mainQuotationData.unit ||
+                  masterMatch?.uom ||
+                  "",
+                installationQuantity:
+                  mainQuotationData.inst_qty || mainQuotationData.qty || "",
                 installationRate: mainQuotationData.inst_rate || "",
                 installationAmount: mainQuotationData.inst_amt || "",
               });
             }
 
-            // Extract base quote ID (without revise suffix)
             const quoteId = mainQuotationData.quote_id || "";
-            // Split by the last occurrence of -R to get base ID
             const baseId = quoteId.includes("-R")
               ? quoteId.substring(0, quoteId.lastIndexOf("-R"))
               : quoteId;
-            // Format the base ID to ensure it's in NLF-YY-YY-Q-XX format
             const formattedBaseId = formatQuoteNumber(baseId);
             console.log(
               "Setting baseQuoteId:",
@@ -511,7 +629,10 @@ export default function NewQuotation() {
               customerCity: mainQuotationData.city || "",
               project: mainQuotationData.project || "",
               officeBranch: mainQuotationData.branch || "",
-              termsAndConditions: mainQuotationData.terms || standardTerms,
+                quoteType: mainQuotationData.quote_type || "direct",
+
+              termsAndConditions:
+                mainQuotationData.terms || standardTerms,
               itemGroups: itemGroups,
               commercialTerms: {
                 gst: "As applicable",
@@ -521,13 +642,13 @@ export default function NewQuotation() {
               secondCarItems: initialFormState.secondCarItems,
               secondCarAdditionalDetails:
                 initialFormState.secondCarAdditionalDetails,
-              revise: mainQuotationData.revise || "R1",
+              revise: mainQuotationData.revise || "",
               isApproved:
                 mainQuotationData.status === "approved" ||
                 mainQuotationData.admin_approval === "Yes",
             };
             setFormData(updatedFormData);
-            setEditorData(updatedFormData.termsAndConditions); // Update editor data separately
+            setEditorData(updatedFormData.termsAndConditions);
           } else {
             if (isMounted) {
               console.error("API response check failed:", {
@@ -553,7 +674,8 @@ export default function NewQuotation() {
         }
       };
       fetchQuotationData();
-      // Fetch next quote number for edit mode
+
+      // Fetch next quote number for edit mode (used when creating revisions)
       const fetchNextQuote = async () => {
         try {
           const nextQuote = await fetchNextQuoteNumber();
@@ -565,9 +687,7 @@ export default function NewQuotation() {
         }
       };
       fetchNextQuote();
-    }
-    // If NEW QUOTATION - fetch new ID from API
-    else if (isNewQuotation) {
+    } else if (isNewQuotation) {
       const fetchNewQuoteNumber = async () => {
         try {
           setIsLoadingQuoteNumber(true);
@@ -577,11 +697,11 @@ export default function NewQuotation() {
             setFormData((prev) => ({
               ...prev,
               quotationId: nextQuoteNumber,
-              quotationNo: nextQuoteNumber, // Initial quote number WITHOUT revision
+              quotationNo: nextQuoteNumber,
               date: new Date().toISOString().split("T")[0],
               officeBranch:
                 branchList.length > 0 ? branchList[0].branch_name : "",
-              revise: "", // No revision for new quotation
+              revise: "",
             }));
           }
         } catch (error) {
@@ -597,6 +717,7 @@ export default function NewQuotation() {
       };
       fetchNewQuoteNumber();
     }
+
     return () => {
       isMounted = false;
     };
@@ -607,114 +728,130 @@ export default function NewQuotation() {
     isViewOnly,
     isNewQuotation,
     navigate,
-    productList,
-    subProductList,
+    masterItems,
+    isLoadingMasterItems,
     branchList,
   ]);
 
   const handleMainFormChange = (e) => {
     if (!isFullyEditable) return;
     const { name, value } = e.target;
-    console.log("handleMainFormChange:", name, value); // Debug log
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    let processedValue = value;
+    if (
+      name === "customerName" ||
+      name === "customerCity" ||
+      name === "project"
+    ) {
+      processedValue = capitalizeWords(value);
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: processedValue }));
   };
 
   const handleItemChange = (groupId, field, value) => {
     if (!isFullyEditable) return;
+
     setFormData((prev) => {
       const updatedGroups = prev.itemGroups.map((group) => {
-        if (group.id === groupId) {
-          const newItem = { ...group, [field]: value };
+        if (group.id !== groupId) return group;
 
-          // Handle sub-product selection
-          if (field === "subProductId" && value) {
-            const selectedSubProduct = subProductList.find(
-              (sp) => sp.id === value
-            );
-            if (selectedSubProduct) {
-              newItem.subProduct = selectedSubProduct.sub_prod_name;
-              if (selectedSubProduct.description) {
-                newItem.description = selectedSubProduct.description;
-              }
-            }
-          }
+        const newItem = { ...group, [field]: value };
 
-          // Handle product selection - reset sub-product when product changes
-          if (field === "productId") {
-            newItem.subProduct = "";
-            newItem.subProductId = "";
-            newItem.description = "";
+        // BRAND SELECTION (value is brand name)
+        if (field === "brandId") {
+          newItem.brandId = value;
+          newItem.brand = value;
 
-            // If a product was selected, keep the name
-            if (value) {
-              const selectedProduct = productList.find(
-                (p) => p.prod_id === value
-              );
-              if (selectedProduct) {
-                newItem.product = selectedProduct.product_name;
-                // Also set the brand if available
-                if (selectedProduct.brand_id) {
-                  newItem.brandId = selectedProduct.brand_id;
-                  const brandMatch = brandList.find(
-                    (b) => b.brand_id === selectedProduct.brand_id
-                  );
-                  if (brandMatch) {
-                    newItem.brand = brandMatch.brand_name;
-                  }
-                }
-              }
-            } else {
-              // If cleared, clear the product name too
-              newItem.product = "";
-            }
-          }
-
-          // Handle brand selection - reset product and sub-product when brand changes
-          if (field === "brandId") {
-            newItem.product = "";
-            newItem.productId = "";
-            newItem.subProduct = "";
-            newItem.subProductId = "";
-            newItem.description = "";
-
-            // If a brand was selected, keep the name
-            if (value) {
-              const selectedBrand = brandList.find(
-                (b) => b.brand_id === value
-              );
-              if (selectedBrand) {
-                newItem.brand = selectedBrand.brand_name;
-              }
-            } else {
-              // If cleared, clear the brand name too
-              newItem.brand = "";
-            }
-          }
-
-          // Amount calculations
-          if (field === "quantity" || field === "rate") {
-            const q = parseFloat(newItem.quantity) || 0;
-            const r = parseFloat(newItem.rate) || 0;
-            newItem.amount = (q * r).toString();
-          }
-
-          if (field === "unit") {
-            newItem.installationUnit = value;
-          }
-
-          if (field === "quantity") {
-            newItem.installationQuantity = value;
-          }
-
-          if (field === "installationQuantity" || field === "installationRate") {
-            const q = parseFloat(newItem.installationQuantity) || 0;
-            const r = parseFloat(newItem.installationRate) || 0;
-            newItem.installationAmount = (q * r).toString();
-          }
-
-          return newItem;
+          // reset dependent fields
+          newItem.product = "";
+          newItem.productId = "";
+          newItem.subProduct = "";
+          newItem.subProductId = "";
+          newItem.description = "";
+          newItem.unit = "";
+          newItem.installationUnit = "";
+          newItem.rate = "";
+          newItem.amount = "";
+          newItem.installationAmount = "";
         }
-        return group;
+
+        // PRODUCT SELECTION (value is g3_category)
+        if (field === "productId") {
+          newItem.productId = value;
+          newItem.product = value;
+
+          // reset dependent sub-product fields
+          newItem.subProduct = "";
+          newItem.subProductId = "";
+          newItem.description = "";
+          newItem.unit = "";
+          newItem.installationUnit = "";
+          newItem.rate = "";
+          newItem.amount = "";
+          newItem.installationAmount = "";
+        }
+
+        // SUB PRODUCT SELECTION (value is master row id)
+        if (field === "subProductId") {
+          const selectedRow = masterItems.find(
+            (m) => String(m.id) === String(value)
+          );
+          if (selectedRow) {
+            newItem.subProduct =
+              selectedRow.item_name ||
+              selectedRow.g4_sub_category ||
+              newItem.subProduct;
+            newItem.description =
+              selectedRow.specification || newItem.description;
+            if (!newItem.unit) {
+              newItem.unit = selectedRow.uom || "";
+            }
+            if (!newItem.installationUnit) {
+              newItem.installationUnit = selectedRow.uom || "";
+            }
+            if (
+              selectedRow.rate !== undefined &&
+              selectedRow.rate !== null &&
+              selectedRow.rate !== ""
+            ) {
+              newItem.rate = String(selectedRow.rate);
+            }
+          }
+        }
+
+        // Amount calculations
+        if (field === "quantity" || field === "rate") {
+          const q = parseFloat(
+            field === "quantity" ? value : newItem.quantity
+          ) || 0;
+          const r = parseFloat(
+            field === "rate" ? value : newItem.rate
+          ) || 0;
+          newItem.amount = (q * r).toString();
+        }
+
+        if (field === "unit") {
+          newItem.installationUnit = value || newItem.installationUnit;
+        }
+
+        // Product quantity change → sync installation quantity
+if (field === "quantity") {
+  newItem.installationQuantity = value;
+
+  const instRate = parseFloat(newItem.installationRate) || 0;
+  const instQty = parseFloat(value) || 0;
+  newItem.installationAmount = (instQty * instRate).toString();
+}
+
+
+        if (field === "installationQuantity" || field === "installationRate") {
+  const q = parseFloat(newItem.installationQuantity) || 0;
+  const r = parseFloat(newItem.installationRate) || 0;
+  newItem.installationAmount = (q * r).toString();
+}
+
+
+        return newItem;
       });
       return { ...prev, itemGroups: updatedGroups };
     });
@@ -743,11 +880,11 @@ export default function NewQuotation() {
       rate: "",
       amount: "",
       product: "",
-      productId: "", // Add this field
-      brand: "", // Add brand field
-      brandId: "", // Add brand ID field
+      productId: "",
+      brand: "",
+      brandId: "",
       subProduct: "",
-      subProductId: "", // Add this field
+      subProductId: "",
       installationDescription: "",
       installationUnit: "",
       installationQuantity: "",
@@ -798,7 +935,7 @@ export default function NewQuotation() {
         quantity: "",
         rate: "",
         amount: "",
-        product: "", // Will be populated from API
+        product: "",
       };
     } else {
       newItem = {
@@ -828,167 +965,137 @@ export default function NewQuotation() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      // ALWAYS use ADD API for both new quotations and revisions
       const apiUrl = "https://nlfs.in/erp/index.php/Nlf_Erp/add_quotation";
 
-      // Prepare data for API
+      const filledItemGroups = getFilledItemGroups(formData.itemGroups);
+
+      if (filledItemGroups.length === 0) {
+        alert(
+          "Please complete at least one item with:\n- Brand & Product selection\n- Unit\n- Quantity (greater than 0)\n- Rate (greater than 0)"
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      const itemsArray = buildItemsArray(filledItemGroups);
+
+      // === EDIT MODE ===
       if (isEditMode) {
-        // Validate revision is selected
-        if (!formData.revise || formData.revise === "") {
-          alert("Please select a revision number before updating the quotation.");
-          setIsSubmitting(false);
-          return;
-        }
-        // Edit mode (Revision) - Create new quote_no by concatenating baseQuoteId with revise
-        const quoteNo = `${baseQuoteId}-${formData.revise}`;
+        // 🔴 CASE 1: RATE NOT APPROVED YET → simple update of existing iteration
+        if (!isRateApproved) {
+          const quoteNo =
+            formData.quotationNo ||
+            baseQuoteId ||
+            formData.quotationId ||
+            "";
 
-        const filledItemGroups = formData.itemGroups.filter((group) => {
-          const hasProduct = group.product && group.product.trim() !== "";
-          const hasQuantity =
-            group.quantity && parseFloat(group.quantity) > 0;
-          const hasRate = group.rate && parseFloat(group.rate) > 0;
-          const hasUnit = group.unit && group.unit.trim() !== "";
-          return hasProduct && hasQuantity && hasRate && hasUnit;
-        });
-
-        if (filledItemGroups.length === 0) {
-          alert(
-            "Please complete at least one item with:\n- Product selection\n- Unit\n- Quantity (greater than 0)\n- Rate (greater than 0)"
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        const calculateAmount = (qty, rate) => {
-          const quantity = parseFloat(qty) || 0;
-          const rateVal = parseFloat(rate) || 0;
-          return (quantity * rateVal).toFixed(2);
-        };
-
-        const itemsArray = filledItemGroups.map((group) => {
-          const itemAmount =
-            group.amount || calculateAmount(group.quantity, group.rate);
-          const instAmount =
-            group.installationAmount ||
-            calculateAmount(
-              group.installationQuantity,
-              group.installationRate
-            );
-          return {
-            product: group.product,
-            sub_product: group.subProduct || "",
-            desc: group.description || "",
-            unit: group.unit,
-            qty: group.quantity,
-            rate: group.rate,
-            amt: itemAmount,
-            inst_unit: group.installationUnit || group.unit,
-            inst_qty: group.installationQuantity || "0",
-            inst_rate: group.installationRate || "0",
-            inst_amt: instAmount,
-            total: (
-              parseFloat(itemAmount) + parseFloat(instAmount)
-            ).toFixed(2),
+          const quotationData = {
+            quote_no: quoteNo,
+            name: formData.customerName,
+            date: formData.date,
+            city: formData.customerCity,
+            project: formData.project,
+            branch: formData.officeBranch,
+              quote_type: formData.quoteType, // "lead" | "direct"
+            revise: "",
+            status: "draft",
+            admin_approval: "No",
+            terms: editorData,
+            total: totals.grandTotal.toFixed(2),
+            items: itemsArray,
           };
-        });
 
-        const quotationData = {
-          quote_id: baseQuoteId, // Keep the original quote_id (e.g., NLF-25-26-Q-0013)
-          quote_no: quoteNo, // New quote_no with revision (e.g., NLF-25-26-Q-13-R2)
-          name: formData.customerName,
-          date: formData.date,
-          city: formData.customerCity,
-          project: formData.project,
-          branch: formData.officeBranch,
-          revise: formData.revise,
-          status: formData.isApproved ? "approved" : "revise", // Set status to "revise" for revisions
-          admin_approval: formData.isApproved ? "Yes" : "No",
-          terms: editorData,
-          total: totals.grandTotal.toFixed(2),
-          items: itemsArray,
-        };
+          console.log(
+            "Updating existing DRAFT quotation (no revision yet):",
+            quotationData
+          );
 
-        console.log(`Sending REVISION data to ADD API:`, quotationData);
-        const response = await axios.post(apiUrl, quotationData, {
-          headers: { "Content-Type": "application/json" },
-        });
+          const response = await axios.post(apiUrl, quotationData, {
+            headers: { "Content-Type": "application/json" },
+          });
 
-        const isSuccess =
-          response.data.status === true ||
-          response.data.status === "true" ||
-          response.data.success === true ||
-          response.data.success === "1";
+          const isSuccess =
+            response.data.status === true ||
+            response.data.status === "true" ||
+            response.data.success === true ||
+            response.data.success === "1";
 
-        if (isSuccess) {
-          alert(`Quotation revision saved successfully! Quote No: ${quoteNo}`);
-          // If approved, convert to PO
-          if (formData.isApproved) {
-            // TODO: Call PO conversion API here
-            console.log("Converting to PO...");
+          if (isSuccess) {
+            alert(
+              `Draft quotation updated successfully! Quote No: ${quoteNo}`
+            );
+            setTimeout(() => {
+              navigate("/clients", { replace: true });
+            }, 100);
+          } else {
+            alert(
+              `Failed to update quotation: ${
+                response.data.message || "Please try again."
+              }`
+            );
           }
-          setTimeout(() => {
-            navigate("/clients", { replace: true });
-          }, 100);
-        } else {
-          alert(
-            `Failed to save quotation revision: ${
-              response.data.message || "Please try again."
-            }`
-          );
         }
-      } else {
-        // Add mode logic - Use quote_id as quote_no (no revision for first time)
-        const quoteNo = formData.quotationId; // Just the base ID, no revision
-
-        const filledItemGroups = formData.itemGroups.filter((group) => {
-          const hasProduct = group.product && group.product.trim() !== "";
-          const hasQuantity =
-            group.quantity && parseFloat(group.quantity) > 0;
-          const hasRate = group.rate && parseFloat(group.rate) > 0;
-          const hasUnit = group.unit && group.unit.trim() !== "";
-          return hasProduct && hasQuantity && hasRate && hasUnit;
-        });
-
-        if (filledItemGroups.length === 0) {
-          alert(
-            "Please complete at least one item with:\n- Product selection\n- Unit\n- Quantity (greater than 0)\n- Rate (greater than 0)"
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        const calculateAmount = (qty, rate) => {
-          const quantity = parseFloat(qty) || 0;
-          const rateVal = parseFloat(rate) || 0;
-          return (quantity * rateVal).toFixed(2);
-        };
-
-        const itemsArray = filledItemGroups.map((group) => {
-          const itemAmount =
-            group.amount || calculateAmount(group.quantity, group.rate);
-          const instAmount =
-            group.installationAmount ||
-            calculateAmount(
-              group.installationQuantity,
-              group.installationRate
+        // ✅ CASE 2: RATE APPROVED → create a NEW REVISION (R1 / R2 ...)
+        else {
+          if (!formData.revise || formData.revise === "") {
+            alert(
+              "Please select a revision number before saving the revised quotation."
             );
-          return {
-            product: group.product,
-            sub_product: group.subProduct || "",
-            desc: group.description || "",
-            unit: group.unit,
-            qty: group.quantity,
-            rate: group.rate,
-            amt: itemAmount,
-            inst_unit: group.installationUnit || group.unit,
-            inst_qty: group.installationQuantity || "0",
-            inst_rate: group.installationRate || "0",
-            inst_amt: instAmount,
-            total: (
-              parseFloat(itemAmount) + parseFloat(instAmount)
-            ).toFixed(2),
+            setIsSubmitting(false);
+            return;
+          }
+
+          const quoteNo = `${baseQuoteId}-${formData.revise}`;
+
+          const quotationData = {
+            quote_id: baseQuoteId,
+            quote_no: quoteNo,
+            name: formData.customerName,
+            date: formData.date,
+            city: formData.customerCity,
+            project: formData.project,
+            branch: formData.officeBranch,
+            revise: formData.revise,
+            status: formData.isApproved ? "approved" : "revise",
+            admin_approval: formData.isApproved ? "Yes" : "No",
+            terms: editorData,
+            total: totals.grandTotal.toFixed(2),
+            items: itemsArray,
           };
-        });
+
+          console.log(`Sending REVISION data to ADD API:`, quotationData);
+          const response = await axios.post(apiUrl, quotationData, {
+            headers: { "Content-Type": "application/json" },
+          });
+
+          const isSuccess =
+            response.data.status === true ||
+            response.data.status === "true" ||
+            response.data.success === true ||
+            response.data.success === "1";
+
+          if (isSuccess) {
+            alert(
+              `Quotation revision saved successfully! Quote No: ${quoteNo}`
+            );
+            if (formData.isApproved) {
+              console.log("Converting to PO...");
+            }
+            setTimeout(() => {
+              navigate("/clients", { replace: true });
+            }, 100);
+          } else {
+            alert(
+              `Failed to save quotation revision: ${
+                response.data.message || "Please try again."
+              }`
+            );
+          }
+        }
+      }
+      // === ADD MODE (brand new quotation) ===
+      else {
+        const quoteNo = formData.quotationId;
 
         console.log(`Total items being sent: ${itemsArray.length}`, itemsArray);
         const quotationData = {
@@ -998,12 +1105,14 @@ export default function NewQuotation() {
           city: formData.customerCity,
           project: formData.project,
           branch: formData.officeBranch,
-          revise: "", // No revision for first time creation
+          revise: "",
           status: "draft",
           admin_approval: "No",
           terms: editorData,
           total: totals.grandTotal.toFixed(2),
           items: itemsArray,
+            commercialTerms: formData.commercialTerms,
+
         };
 
         console.log(
@@ -1015,7 +1124,6 @@ export default function NewQuotation() {
         });
 
         console.log("API Response:", response.data);
-        // FIXED: Check for both boolean and string status values
         const isSuccess =
           response.data.status === true ||
           response.data.status === "true" ||
@@ -1064,29 +1172,24 @@ export default function NewQuotation() {
   if (
     isLoadingData ||
     isLoadingQuoteNumber ||
-    isLoadingProducts ||
-    isLoadingSubProducts ||
     isLoadingBranches ||
-    isLoadingBrands
+    isLoadingUnits ||
+    isLoadingMasterItems
   ) {
+    let message = "Loading...";
+    if (isLoadingData) message = "Loading quotation data...";
+    else if (isLoadingQuoteNumber) message = "Generating new quote number...";
+    else if (isLoadingMasterItems)
+      message = "Loading product / rate master list...";
+    else if (isLoadingBranches) message = "Loading branches...";
+    else if (isLoadingUnits) message = "Loading units...";
+
     return (
       <Container fluid className="my-4 text-center">
         <Spinner animation="border" role="status" style={{ color: "#ed3131" }}>
           <span className="visually-hidden">Loading...</span>
         </Spinner>
-        <p className="mt-3">
-          {isLoadingData
-            ? "Loading quotation data..."
-            : isLoadingQuoteNumber
-            ? "Generating new quote number..."
-            : isLoadingProducts || isLoadingSubProducts
-            ? "Loading products and sub-products..."
-            : isLoadingBranches
-            ? "Loading branches..."
-            : isLoadingBrands
-            ? "Loading brands..."
-            : "Loading..."}
-        </p>
+        <p className="mt-3">{message}</p>
       </Container>
     );
   }
@@ -1117,6 +1220,41 @@ export default function NewQuotation() {
         </Button>
       </Link>
       <Form onSubmit={handleSubmit}>
+        {/* Quote Type Selection */}
+<Card className="mb-4">
+  <Card.Body>
+    <Form.Group>
+      <Form.Label className="fw-bold">
+        Quote Type
+      </Form.Label>
+
+      <div className="d-flex gap-4 mt-2">
+        <Form.Check
+          type="radio"
+          label="Lead"
+          name="quoteType"
+          value="lead"
+          checked={formData.quoteType === "lead"}
+          onChange={handleMainFormChange}
+          disabled={!isFullyEditable}
+        />
+
+        <Form.Check
+          type="radio"
+          label="New"
+          name="quoteType"
+          value="direct"
+          checked={formData.quoteType === "direct"}
+          onChange={handleMainFormChange}
+          disabled={!isFullyEditable}
+        />
+      </div>
+
+      
+    </Form.Group>
+  </Card.Body>
+</Card>
+
         <Row>
           {/* Card 1: Quotation Details */}
           <Col md="12">
@@ -1153,7 +1291,7 @@ export default function NewQuotation() {
                 <Row>
                   <Col md="6">
                     <Form.Group className="mb-3">
-                      <Form.Label>Name</Form.Label>
+                      <Form.Label>Client Name</Form.Label>
                       <Form.Control
                         type="text"
                         name="customerName"
@@ -1161,6 +1299,7 @@ export default function NewQuotation() {
                         onChange={handleMainFormChange}
                         readOnly={!isFullyEditable}
                         required
+                        style={{ textTransform: "capitalize" }}
                       />
                     </Form.Group>
                   </Col>
@@ -1174,6 +1313,7 @@ export default function NewQuotation() {
                         onChange={handleMainFormChange}
                         readOnly={!isFullyEditable}
                         required
+                        style={{ textTransform: "capitalize" }}
                       />
                     </Form.Group>
                   </Col>
@@ -1189,6 +1329,7 @@ export default function NewQuotation() {
                         onChange={handleMainFormChange}
                         readOnly={!isFullyEditable}
                         required
+                        style={{ textTransform: "capitalize" }}
                       />
                     </Form.Group>
                   </Col>
@@ -1210,10 +1351,7 @@ export default function NewQuotation() {
                           disabled={!isFullyEditable}
                         >
                           {branchList.map((branch) => (
-                            <option
-                              key={branch.id}
-                              value={branch.branch_name}
-                            >
+                            <option key={branch.id} value={branch.branch_name}>
                               {branch.branch_name}
                             </option>
                           ))}
@@ -1222,8 +1360,9 @@ export default function NewQuotation() {
                     </Form.Group>
                   </Col>
                 </Row>
-                {/* Revision dropdown - COMPULSORY in edit mode */}
-                {isEditMode && (
+
+                {/* Revision + Approval section */}
+                {isEditMode && isRateApproved && (
                   <Row>
                     <Col md="4">
                       <Form.Group className="mb-3">
@@ -1246,7 +1385,8 @@ export default function NewQuotation() {
                           ))}
                         </Form.Control>
                         <Form.Text className="text-muted">
-                          Select revision number (compulsory for updates)
+                          Select revision number (compulsory once rate is
+                          approved)
                         </Form.Text>
                       </Form.Group>
                     </Col>
@@ -1274,29 +1414,6 @@ export default function NewQuotation() {
                         </Form.Text>
                       </Form.Group>
                     </Col>
-                    <Col md="4">
-                      <Form.Group className="mb-3">
-                        <Form.Label>Approval Status</Form.Label>
-                        <Form.Check
-                          type="checkbox"
-                          label="Approve & Convert to PO"
-                          name="isApproved"
-                          checked={formData.isApproved}
-                          onChange={(e) => {
-                            if (!isFullyEditable) return;
-                            setFormData((prev) => ({
-                              ...prev,
-                              isApproved: e.target.checked,
-                            }));
-                          }}
-                          disabled={!isFullyEditable}
-                          style={{ marginTop: "8px" }}
-                        />
-                        <Form.Text className="text-muted">
-                          Check to approve and convert to Purchase Order
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
                   </Row>
                 )}
               </Card.Body>
@@ -1310,311 +1427,363 @@ export default function NewQuotation() {
                 <Card.Title as="h4">Quotation Items</Card.Title>
               </Card.Header>
               <Card.Body>
-                {formData.itemGroups.map((group) => (
-                  <div key={group.id} className="border rounded p-3 mb-4">
-                    <Row className="align-items-start mb-3">
-                      <Col md="2">
-                        <Form.Group>
-                          <Form.Label>Brand</Form.Label>
-                          {isLoadingBrands ? (
-                            <Form.Control type="text" value="Loading..." readOnly />
-                          ) : (
-                            <Form.Control
-                              as="select"
-                              value={group.brandId || ""}
-                              onChange={(e) =>
-                                handleItemChange(group.id, "brandId", e.target.value)
-                              }
-                              disabled={!isFullyEditable}
-                            >
-                              <option value="">Select Brand</option>
-                              {brandList.map((brand) => (
-                                <option key={brand.brand_id} value={brand.brand_id}>
-                                  {brand.brand_name}
-                                </option>
-                              ))}
-                            </Form.Control>
-                          )}
-                        </Form.Group>
-                      </Col>
-                      <Col md="2">
-                        <Form.Group>
-                          <Form.Label>Product</Form.Label>
-                          {isLoadingProducts ? (
-                            <Form.Control type="text" value="Loading..." readOnly />
-                          ) : (
-                            <Form.Control
-                              as="select"
-                              value={group.productId || ""}
-                              onChange={(e) =>
-                                handleItemChange(group.id, "productId", e.target.value)
-                              }
-                              disabled={!isFullyEditable /* || !group.brandId */}
-                            >
-                              <option value="">Select Product</option>
-                              {productList
-                                // if API also sends brand_id, you can re-enable this filter:
-                                // .filter(
-                                //   (p) =>
-                                //     !group.brandId ||
-                                //     String(p.brand_id) === String(group.brandId)
-                                // )
-                                .map((product) => (
-                                  <option
-                                    key={product.prod_id}
-                                    value={product.prod_id}
-                                  >
-                                    {product.product_name}
+                {formData.itemGroups.map((group) => {
+                  const selectedBrand = group.brandId || group.brand || "";
+                  const selectedProduct =
+                    group.productId || group.product || "";
+
+                  const productOptions = getProductOptions(selectedBrand);
+                  const subProductOptions = getSubProductOptions(
+                    selectedBrand,
+                    selectedProduct
+                  );
+
+                  return (
+                    <div key={group.id} className="border rounded p-3 mb-4">
+                      <Row className="align-items-start mb-3">
+                        <Col md="2">
+                          <Form.Group>
+                            <Form.Label>Brand</Form.Label>
+                            {isLoadingMasterItems ? (
+                              <Form.Control
+                                type="text"
+                                value="Loading..."
+                                readOnly
+                              />
+                            ) : (
+                              <Form.Control
+                                as="select"
+                                value={group.brandId || ""}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    group.id,
+                                    "brandId",
+                                    e.target.value
+                                  )
+                                }
+                                disabled={!isFullyEditable}
+                              >
+                                <option value="">Select Brand</option>
+                                {brandOptions.map((b) => (
+                                  <option key={b} value={b}>
+                                    {b}
                                   </option>
                                 ))}
-                            </Form.Control>
-                          )}
-                        </Form.Group>
-                      </Col>
-                      <Col md="2">
-                        <Form.Group>
-                          <Form.Label>Sub Product</Form.Label>
-                          {isLoadingSubProducts ? (
-                            <Form.Control type="text" value="Loading..." readOnly />
-                          ) : (
+                              </Form.Control>
+                            )}
+                          </Form.Group>
+                        </Col>
+                        <Col md="2">
+                          <Form.Group>
+                            <Form.Label>Product</Form.Label>
+                            {isLoadingMasterItems ? (
+                              <Form.Control
+                                type="text"
+                                value="Loading..."
+                                readOnly
+                              />
+                            ) : (
+                              <Form.Control
+                                as="select"
+                                value={group.productId || ""}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    group.id,
+                                    "productId",
+                                    e.target.value
+                                  )
+                                }
+                                disabled={!isFullyEditable || !selectedBrand}
+                              >
+                                <option value="">Select Product</option>
+                                {productOptions.map((p) => (
+                                  <option key={p} value={p}>
+                                    {p}
+                                  </option>
+                                ))}
+                              </Form.Control>
+                            )}
+                          </Form.Group>
+                        </Col>
+                        <Col md="2">
+                          <Form.Group>
+                            <Form.Label>Sub Product</Form.Label>
+                            {isLoadingMasterItems ? (
+                              <Form.Control
+                                type="text"
+                                value="Loading..."
+                                readOnly
+                              />
+                            ) : (
+                              <Form.Control
+                                as="select"
+                                value={group.subProductId || ""}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    group.id,
+                                    "subProductId",
+                                    e.target.value
+                                  )
+                                }
+                                disabled={!isFullyEditable || !selectedProduct}
+                              >
+                                <option value="">Select Sub Product</option>
+                                {subProductOptions.map((sp) => (
+                                  <option key={sp.id} value={sp.id}>
+                                    {sp.item_name}
+                                  </option>
+                                ))}
+                              </Form.Control>
+                            )}
+                          </Form.Group>
+                        </Col>
+                        <Col md="6">
+                          <Form.Group>
+                            <Form.Label>Description</Form.Label>
                             <Form.Control
-                              as="select"
-                              value={group.subProductId || ""}
+                              as="textarea"
+                              rows={2}
+                              value={group.description}
                               onChange={(e) =>
                                 handleItemChange(
                                   group.id,
-                                  "subProductId",
+                                  "description",
                                   e.target.value
                                 )
                               }
-                              disabled={!isFullyEditable || !group.productId}
-                            >
-                              <option value="">Select Sub Product</option>
-                              {subProductList
-                                .filter(
-                                  (sp) =>
-                                    String(sp.prod_id) === String(group.productId)
-                                )
-                                .map((subProd) => (
-                                  <option key={subProd.id} value={subProd.id}>
-                                    {subProd.sub_prod_name}
+                              readOnly={!isFullyEditable}
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+                      <Row className="mb-3">
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>Unit</Form.Label>
+                            {isLoadingUnits ? (
+                              <Form.Control
+                                type="text"
+                                value="Loading..."
+                                readOnly
+                              />
+                            ) : (
+                              <Form.Control
+                                as="select"
+                                value={group.unit}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    group.id,
+                                    "unit",
+                                    e.target.value
+                                  )
+                                }
+                                disabled={!isFullyEditable}
+                              >
+                                <option value="">Select Unit</option>
+                                {unitList.map((unit) => (
+                                  <option key={unit.unit_id} value={unit.unit}>
+                                    {unit.unit}
                                   </option>
                                 ))}
-                            </Form.Control>
-                          )}
-                        </Form.Group>
-                      </Col>
-                      <Col md="6">
-                        <Form.Group>
-                          <Form.Label>Description</Form.Label>
-                          <Form.Control
-                            as="textarea"
-                            rows={2}
-                            value={group.description}
-                            onChange={(e) =>
-                              handleItemChange(group.id, "description", e.target.value)
-                            }
-                            readOnly={!isFullyEditable}
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    <Row className="mb-3">
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>Unit</Form.Label>
-                          {isLoadingUnits ? (
-                            <Form.Control type="text" value="Loading..." readOnly />
-                          ) : (
-                            <Form.Control
-                              as="select"
-                              value={group.unit}
-                              onChange={(e) =>
-                                handleItemChange(group.id, "unit", e.target.value)
-                              }
-                              disabled={!isFullyEditable}
-                            >
-                              <option value="">Select Unit</option>
-                              {unitList.map((unit) => (
-                                <option key={unit.unit_id} value={unit.unit}>
-                                  {unit.unit}
-                                </option>
-                              ))}
-                            </Form.Control>
-                          )}
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>Quantity</Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.quantity}
-                            onChange={(e) =>
-                              handleItemChange(group.id, "quantity", e.target.value)
-                            }
-                            readOnly={!isFullyEditable}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>
-                            Rate{" "}
-                            {isEditMode && (
-                              <span style={{ color: "green" }}>(Editable)</span>
+                              </Form.Control>
                             )}
-                          </Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.rate}
-                            onChange={(e) =>
-                              handleItemChange(group.id, "rate", e.target.value)
-                            }
-                            readOnly={!isFullyEditable}
-                            style={
-                              isEditMode
-                                ? { borderColor: "#28a745", borderWidth: "2px" }
-                                : {}
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>
-                            Amount{" "}
-                            {isEditMode && (
-                              <span style={{ color: "green" }}>
-                                (Auto-calculated)
-                              </span>
-                            )}
-                          </Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.amount || 0}
-                            readOnly
-                            style={
-                              isEditMode
-                                ? { backgroundColor: "#d4edda" }
-                                : {}
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    <Row className="mt-3 pt-3 border-top">
-                      <Card.Title className="mb-4">Installation</Card.Title>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>Unit</Form.Label>
-                          {isLoadingUnits ? (
-                            <Form.Control type="text" value="Loading..." readOnly />
-                          ) : (
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>Quantity</Form.Label>
                             <Form.Control
-                              as="select"
-                              value={group.installationUnit}
+                              type="number"
+                              value={group.quantity}
                               onChange={(e) =>
                                 handleItemChange(
                                   group.id,
-                                  "installationUnit",
+                                  "quantity",
                                   e.target.value
                                 )
                               }
-                              disabled={!isFullyEditable}
-                            >
-                              <option value="">Select Unit</option>
-                              {unitList.map((unit) => (
-                                <option key={unit.unit_id} value={unit.unit}>
-                                  {unit.unit}
-                                </option>
-                              ))}
-                            </Form.Control>
-                          )}
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>Quantity</Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.installationQuantity}
-                            onChange={(e) =>
-                              handleItemChange(
-                                group.id,
-                                "installationQuantity",
-                                e.target.value
-                              )
-                            }
-                            readOnly={!isFullyEditable}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>
-                            Rate{" "}
-                            {isEditMode && (
-                              <span style={{ color: "green" }}>(Editable)</span>
+                              readOnly={!isFullyEditable}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>
+                              Rate{" "}
+                              {isEditMode && (
+                                <span style={{ color: "green" }}></span>
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              type="number"
+                              value={group.rate}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  group.id,
+                                  "rate",
+                                  e.target.value
+                                )
+                              }
+                              readOnly={!isFullyEditable}
+                              style={
+                                isEditMode
+                                  ? {
+                                      borderColor: "#28a745",
+                                      borderWidth: "2px",
+                                    }
+                                  : {}
+                              }
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>
+                              Amount{" "}
+                              {isEditMode && (
+                                <span style={{ color: "green" }}></span>
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              type="number"
+                              value={group.amount || 0}
+                              readOnly
+                              style={
+                                isEditMode
+                                  ? {
+                                      borderColor: "#28a745",
+                                      borderWidth: "2px",
+                                    }
+                                  : {}
+                              }
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+                      <Row className="mt-3 pt-3 border-top">
+                        <Card.Title className="mb-4">Installation</Card.Title>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>Unit</Form.Label>
+                            {isLoadingUnits ? (
+                              <Form.Control
+                                type="text"
+                                value="Loading..."
+                                readOnly
+                              />
+                            ) : (
+                              <Form.Control
+                                as="select"
+                                value={group.installationUnit}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    group.id,
+                                    "installationUnit",
+                                    e.target.value
+                                  )
+                                }
+                                disabled={!isFullyEditable}
+                              >
+                                <option value="">Select Unit</option>
+                                {unitList.map((unit) => (
+                                  <option key={unit.unit_id} value={unit.unit}>
+                                    {unit.unit}
+                                  </option>
+                                ))}
+                              </Form.Control>
                             )}
-                          </Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.installationRate}
-                            onChange={(e) =>
-                              handleItemChange(
-                                group.id,
-                                "installationRate",
-                                e.target.value
-                              )
-                            }
-                            readOnly={!isFullyEditable}
-                            style={
-                              isEditMode
-                                ? { borderColor: "#28a745", borderWidth: "2px" }
-                                : {}
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md="3">
-                        <Form.Group>
-                          <Form.Label>
-                            Amount{" "}
-                            {isEditMode && (
-                              <span style={{ color: "green" }}>
-                                (Auto-calculated)
-                              </span>
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>Quantity</Form.Label>
+                            <Form.Control
+                              type="number"
+                              value={group.installationQuantity}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  group.id,
+                                  "installationQuantity",
+                                  e.target.value
+                                )
+                              }
+                              readOnly={!isFullyEditable}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>
+                              Rate{" "}
+                              {isEditMode && (
+                                <span style={{ color: "green" }}>)</span>
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              type="number"
+                              value={group.installationRate}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  group.id,
+                                  "installationRate",
+                                  e.target.value
+                                )
+                              }
+                              readOnly={!isFullyEditable}
+                              style={
+                                isEditMode
+                                  ? {
+                                      borderColor: "#28a745",
+                                      borderWidth: "2px",
+                                    }
+                                  : {}
+                              }
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md="3">
+                          <Form.Group>
+                            <Form.Label>
+                              Amount{" "}
+                              {isEditMode && (
+                                <span style={{ color: "green" }}></span>
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              type="number"
+                              value={group.installationAmount || 0}
+                              readOnly
+                              style={
+                                isEditMode
+                                  ? {
+                                      borderColor: "#28a745",
+                                      borderWidth: "2px",
+                                    }
+                                  : {}
+                              }
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+                      <Row className="mt-3">
+                        <Col>
+                          {isFullyEditable &&
+                            formData.itemGroups.length > 1 && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() =>
+                                  handleRemoveItemGroup(group.id)
+                                }
+                              >
+                                <FaMinus />
+                              </Button>
                             )}
-                          </Form.Label>
-                          <Form.Control
-                            type="number"
-                            value={group.installationAmount || 0}
-                            readOnly
-                            style={
-                              isEditMode
-                                ? { backgroundColor: "#d4edda" }
-                                : {}
-                            }
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    <Row className="mt-3">
-                      <Col>
-                        {isFullyEditable && formData.itemGroups.length > 1 && (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleRemoveItemGroup(group.id)}
-                          >
-                            <FaMinus /> Remove Item + Installation
-                          </Button>
-                        )}
-                      </Col>
-                    </Row>
-                  </div>
-                ))}
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                })}
                 {isFullyEditable && (
                   <div className="d-flex justify-content-start">
                     <Button
@@ -1637,21 +1806,41 @@ export default function NewQuotation() {
                 <Card.Title as="h4">Terms & Conditions</Card.Title>
               </Card.Header>
               <Card.Body>
+                <div className="mb-2">
+                  <small
+                    className={
+                      characterCount > MAX_CHARACTER_LIMIT
+                        ? "text-danger"
+                        : "text-muted"
+                    }
+                  >
+                    Characters: {characterCount} / {MAX_CHARACTER_LIMIT}
+                  </small>
+                </div>
                 <CKEditor
                   editor={ClassicEditor}
                   data={editorData}
                   onReady={(editor) => {
                     editorRef.current = editor;
+                    setCharacterCount(editor.getData().length);
                   }}
                   onChange={(event, editor) => {
                     const data = editor.getData();
                     setEditorData(data);
+                    setCharacterCount(data.length);
+                    if (data.length > MAX_CHARACTER_LIMIT) {
+                      setEditorError(true);
+                    } else {
+                      setEditorError(false);
+                    }
                   }}
                   disabled={!isFullyEditable}
                 />
                 {editorError && (
                   <p className="text-danger mt-2">
-                    Error loading editor. Please try again.
+                    Warning: Terms content exceeds the maximum character limit (
+                    {MAX_CHARACTER_LIMIT}). This may result in truncation when
+                    saving.
                   </p>
                 )}
               </Card.Body>
@@ -1700,7 +1889,11 @@ export default function NewQuotation() {
                             {isEditMode ? "Updating..." : "Saving..."}
                           </>
                         ) : isEditMode ? (
-                          "Update Quotation"
+                          isRateApproved ? (
+                            "Save Revision"
+                          ) : (
+                            "Update Quotation"
+                          )
                         ) : (
                           "Save Quotation"
                         )}
