@@ -3,6 +3,10 @@
    Optimized and Consolidated
 ============================================ */
 
+/* src/index.css */
+
+
+
 /* ===== CSS CUSTOM PROPERTIES (THEME VARIABLES) ===== */
 :root {
   /* Colors */
@@ -48,7 +52,7 @@
   --space-2xl: 3rem; /* 48px */
   
   /* Typography */
-  --font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+   --font-family: "Calibri", "Segoe UI", Arial, sans-serif;
   --font-size-sm: 0.85rem;
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
@@ -81,6 +85,11 @@
   --breakpoint-md: 768px;
   --breakpoint-lg: 992px;
   --breakpoint-xl: 1200px;
+}
+
+.table {
+  font-size: var(--font-size-md);
+
 }
 
 /* ===== BASE STYLES ===== */
@@ -390,7 +399,7 @@ body {
   font-weight: var(--font-weight-semibold);
   color: var(--gray-600);
   border-bottom: 2px solid var(--gray-300);
-  padding: var(--space-md);
+  padding: var(--space-sm);
 }
 
 .table td {
@@ -1031,4 +1040,15 @@ body {
 .lead-stage-select option {
   background-color: #ffffff;
   color: #000000;
+}
+
+.pdf-quote-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-left: 0 !important;
+}
+
+.ck-content p {
+  margin: 2px 0 !important;
+  line-height: 1.25;
 }

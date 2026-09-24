@@ -2,7 +2,7 @@
 import { Container } from "react-bootstrap";
 import { useState, useEffect } from "react";
 import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import LoginForm from "./LoginForm";
+import LoginForm from "./LoginForm"; // Commented out login form
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -41,7 +41,7 @@ import POVendor from "./tables/POvendor";
 import NewVendorPO from "./forms/NewVendorpo";
 import AnnextureViewer from "./tables/AnnextureViewer";
 import PendingLeave from "./tables/PendingLeave";
-import AnnextureForm from "./forms/AnnextureForm ";
+import AnnexureForm from "./forms/AnnexureForm";
 import Dispatch from "./pages/Dispatch";
 import DispatchForm from "./forms/DispatchForm";
 import HR from "./hr module/HR";
@@ -57,7 +57,6 @@ import QuotationReportList from "./hr module/QuotationReportList";
 import PurchaseOrderReportList from "./hr module/PurchaseOrderReportList";
 import SiteManagement from "./pages/SiteManagement";
 import ViewSiteManagement from "./forms/ViewSiteManagement";
-import RegisterUser from "./pages/Register";
 import UserTable from "./pages/UserTable";
 import { User } from "lucide-react";
 import Master from "./Master";
@@ -77,13 +76,21 @@ import ProductMaster from "./master/ProductMaster";
 import ViewWorkOrder from "./forms/ViewWorkOrder";
 import Signature from "./master/Signature";
 import VendorMaster from "./master/Vendor";
+import DesignPreview from "./components/DesignPreview";
+import RateApprove from "./pages/RateApprove";
+import UpdateQuotation from "./forms/UpdateQUotation";
+import DirectPo from "./forms/DirectPo";
+import Dmemo from './pages/Dmemo';
+import Register from "./pages/Register";
+import EnrollUser from "./master/EnrollUser";
+import Annexure from "./pages/Annexure";
+import AnnexureView from "./forms/AnnexureView";
+import AnnexureRevise from "./forms/AnnexureRevise";
 
-// 🔐 Helper: Check if user is "logged in"
 const isAuthenticated = () => {
   return sessionStorage.getItem("isLoggedIn") === "true";
 };
 
-// 🔐 Protected Layout Wrapper
 const ProtectedLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -149,7 +156,7 @@ function App() {
             <Sidebar 
               collapsed={sidebarOpen} 
               onClose={() => setSidebarOpen(false)}
-              onLogout={handleLogout}
+              // onLogout={handleLogout}
             />
           </div>
 
@@ -157,20 +164,24 @@ function App() {
           <div className="main-content flex-grow-1 d-flex flex-column">
             <Topbar 
               onToggleSidebar={() => setSidebarOpen(true)}
-              onLogout={handleLogout}
+              // onLogout={handleLogout}
             />
             <Container fluid className="p-3 content-area flex-grow-1">
               <Routes>
                 {/* Default redirect to dashboard */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/deliverymemo/:po_id" element={<Dmemo />} />
 
                 {/* Pages */}
                 {/*-----------------Master----------------*/}
                 <Route path="/mastertable" element={<Master />} />
+                {/* Update Quotation Route */}
+                <Route path="/update-quotation/:quotationId" element={<UpdateQuotation />} />
                 <Route path="/branchmaster" element={<Branchmaster />} />
                 <Route path="/rolemaster" element={<RoleMaster />} />
                 <Route path="/materialmaster" element={<Material />} />
-                <Route path="/registeruser" element={<RegisterUser />} />
+                <Route path="/registeruser" element={<Register />} />
+                <Route path="/adduser" element={<EnrollUser />} />
                 <Route path="/stagemaster" element={<Stage />} />
                 <Route path="/usertable" element={<UserTable />} />
                 <Route path="/unitmaster" element={<Unit />} />
@@ -184,7 +195,8 @@ function App() {
                 <Route path="/salesdashboard" element={<SalesDashboard />} />
                 <Route path="/signature" element={<Signature />} />
                 <Route path="/vendormaster" element={<VendorMaster />} />
-                <Route path="/po/new/:quotationId" element={<PoForm />} />
+              <Route path="/annexure/view/:annexureId" element={<AnnexureView />} />
+                <Route path="/po/new/:quotationId/:workOrderId" element={<PoForm />} />
                 {/*-----------------Master End----------------*/}
                 
                 <Route path="/new-customer" element={<NewCustomer />} />
@@ -199,6 +211,7 @@ function App() {
                 <Route path="/tenders" element={<TendersAll />} />
                 <Route path="/lead-form" element={<LeadForm />} />
                 <Route path="/sales" element={<SalesPerson />} />
+                <Route path="/rateapprove" element={<RateApprove />} />
 
                 {/*Sales module*/}
                 <Route path="/sales-person/:salespersonId" element={<SalesPerson />} />
@@ -232,6 +245,10 @@ function App() {
                 <Route path="/admin-approval" element={<AdminApproval />} />
                 <Route path="/workorderpage" element={<WorkOrder />} />
                 <Route path="/workorder/view/:workOrderId" element={<ViewWorkOrder />} />
+                <Route path="/directpo" element={<DirectPo />} />
+                
+                {/* Annexure Form Route - This route handles the PO annexure form */}
+                <Route path="/annexureform/:poId" element={<AnnexureForm />} />
 
                 {/* Module 2 */}
                 <Route path="/ordertable" element={<Ordertable />} />
@@ -240,9 +257,13 @@ function App() {
                 <Route path="/store/approved" element={<Ordertable type="store" />} />
                 <Route path="/planning" element={<Ordertable type="planning" />} />
                 <Route
-                  path="/approved-quotes/:section/details/:quotationId"
-                  element={<ApprovedForm />}
+                  path="/design/work-order/:workOrderId/preview"
+                  element={<DesignPreview />}
                 />
+
+                <Route path="/quotation/edit/:id" element={<NewQuotation />} />
+                <Route path="/quotation/new-revision/:id" element={<NewQuotation />} />
+
                 <Route path="/povendor" element={<POVendor />} />
                 <Route path="/designsubpage/:workOrderId" element={<DesignSubpage />} />
                 <Route path="/plannings" element={<Planning />} />
@@ -250,19 +271,21 @@ function App() {
                 <Route path="/store" element={<Store />} />
                 <Route path="/storesubpage/:workOrderId" element={<StoreSubpage />} />
                 <Route path="/AllMaterials" element={<AllMaterials />} />
-                <Route path="/po/new/:quotationId/:roundId" element={<PoForm />} />
+                {/* <Route path="/po/new/:quotationId/:roundId" element={<PoForm />} /> */}
                 <Route path="/newvendorpo" element={<NewVendorPO />} />
                 <Route path="/povendor/:poId" element={<Vendor />} />
-                <Route path="/annextureviewer/:workOrderId" element={<AnnextureViewer />} />
+                <Route path="/annexurepage" element={<Annexure />} />
                 <Route path="/designnewvendor" element={<NewVendorPO />} />
                 <Route path="/storenewvendor" element={<NewVendorPO />} />
                 <Route path="/plannewvendor" element={<NewVendorPO />} />
                 <Route path="/pendingleaves" element={<PendingLeave />} />
-                <Route path="/annextureform" element={<AnnextureForm />} />
                 <Route path="/dispatch" element={<Dispatch />} />
                 <Route path="/dispatchform" element={<DispatchForm />} />
                 <Route path="/dispatchform/edit/:shipmentId" element={<DispatchForm />} />
-                <Route path="/dispatchform/view/:shipmentId" element={<DispatchForm />} />
+                {/* NEW: Added route for DispatchForm with po_id parameter */}
+                <Route path="/dispatchform/:po_id" element={<DispatchForm />} />
+                // In App.jsx, add this route with the other routes
+<Route path="/annexure/revise/:annexureId" element={<AnnexureRevise />} />
 
                 {/* HR MODULE ROUTING */}
                 <Route path="/hr" element={<HR />} />
@@ -290,7 +313,7 @@ function App() {
           <Route path="/login" element={<LoginForm onLoginSuccess={handleLoginSuccess} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      )}
+      )} 
     </Router>
   );
 }

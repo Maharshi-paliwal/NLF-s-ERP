@@ -1,6 +1,744 @@
+// import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
+// import {
+//   Card,
+//   Container,
+//   Row,
+//   Col,
+//   Button,
+//   Form,
+//   Pagination,
+//   Tabs,
+//   Tab,
+//   Badge,
+//   Spinner,
+//   Modal,
+// } from "react-bootstrap";
+// import { FaDownload, FaEye, FaReceipt } from "react-icons/fa";
+// import { Link, useNavigate } from "react-router-dom";
+
+// // ✅ LAZY-LOAD PDFPreview and POPreviewModal
+// const PDFPreview = lazy(() => import("../components/PDFpreview.jsx"));
+// const POPreviewModal = lazy(() => import("../components/POPreviewModal"));
+
+// // ===============
+// // UTILS
+// // ===============
+// const formatQuoteNumber = (quoteNo) => {
+//   return quoteNo && quoteNo.trim() !== "" ? quoteNo : "-";
+// };
+
+// const isApprovedValue = (val) => {
+//   if (!val) return false;
+//   const s = String(val).trim().toLowerCase();
+//   return ["yes", "approved", "true", "1"].includes(s);
+// };
+
+// const getRoundSortValue = (roundId) => {
+//   if (!roundId || roundId === "Initial") return 0;
+//   const match = roundId.match(/^R(\d+)$/);
+//   return match ? parseInt(match[1]) : 0;
+// };
+
+// const formatDisplayDate = (dateStr) => {
+//   if (!dateStr) return "-";
+//   const parts = dateStr.split("-");
+//   if (parts.length === 3 && parts[0].length === 4) {
+//     const [y, m, d] = parts;
+//     return `${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}-${y}`;
+//   }
+//   const d = new Date(dateStr);
+//   if (!isNaN(d.getTime())) {
+//     const dd = String(d.getDate()).padStart(2, "0");
+//     const mm = String(d.getMonth() + 1).padStart(2, "0");
+//     const yy = d.getFullYear();
+//     return `${dd}-${mm}-${yy}`;
+//   }
+//   return dateStr;
+// };
+
+// // ====================
+// // QUOTE TABLE COMPONENT
+// // ====================
+// const AdminApprovalTable = ({
+//   quotes,
+//   currentPage,
+//   totalPages,
+//   paginate,
+//   onShowPDFPreview,
+// }) => {
+//   return (
+//     <>
+//       <div className="table-responsive">
+//         <table className="table table-striped table-hover">
+//           <thead>
+//             <tr>
+//               <th>Sr. No.</th>
+//               <th>Quotation No</th>
+//               <th>Client Name</th>
+//               <th>Date</th>
+//               <th>Amount (₹)</th>
+//               <th>Admin Approval</th>
+//               <th>Status</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//            {quotes.length > 0 ? (
+//   quotes.map((item, index) => {
+//     const isAdminApproved = isApprovedValue(item.admin_approval);
+//     const isRateApproved = isApprovedValue(item.rate_approval);
+//     const isCreatedByAdmin = item.role === "admin";
+
+//     return (
+//       <tr key={item.key}>
+//         <td>{(currentPage - 1) * 10 + index + 1}</td>
+//         <td>
+//           <div>
+//             {item.formattedQuoteNo}
+//             {/* Show a badge if this is an admin-created quote */}
+//             {isCreatedByAdmin && (
+//               <Badge className="ms-2" bg="info">Admin Created</Badge>
+//             )}
+//             {/* Show a badge if this is a rate-approved quote */}
+//             {!isCreatedByAdmin && isRateApproved && (
+//               <Badge className="ms-2" bg="success">Rate Approved</Badge>
+//             )}
+//           </div>
+//         </td>
+//         <td>{item.name}</td>
+//         <td>{formatDisplayDate(item.date)}</td>
+//         <td>₹ {parseFloat(item.total || 0).toLocaleString("en-IN")}</td>
+
+//         {/* Checkbox */}
+//         <td className="text-center">
+//           <Form.Check
+//             type="checkbox"
+//             checked={isAdminApproved}
+//             disabled={isAdminApproved}
+//             onChange={() => {
+//               if (!isAdminApproved) onShowPDFPreview(item);
+//             }}
+//           />
+//         </td>
+
+//         {/* Status + Download */}
+//         <td>
+//           <div className="d-flex align-items-center gap-2">
+//             <Badge
+//               className={`px-3 py-2 ${
+//                 isAdminApproved
+//                   ? "bg-success text-light"
+//                   : "bg-warning text-dark"
+//               }`}
+//             >
+//               {isAdminApproved ? "Approved" : "Pending"}
+//             </Badge>
+
+//             {isAdminApproved && (
+//               <Button
+//                 variant="outline-danger"
+//                 size="sm"
+//                 onClick={() => onShowPDFPreview(item)}
+//               >
+//                 <FaDownload />
+//               </Button>
+//             )}
+//           </div>
+//         </td>
+//       </tr>
+//     );
+//   })
+// ) : (
+//               <tr>
+//                 <td colSpan="7" className="text-center p-4">
+//                   finding quotations
+//                 </td>
+//               </tr>
+//             )}
+//           </tbody>
+//         </table>
+//       </div>
+
+//       {totalPages > 1 && (
+//         <div className="d-flex justify-content-center p-3">
+//           <Pagination>
+//             {Array.from({ length: totalPages }, (_, i) => (
+//               <Pagination.Item
+//                 key={i + 1}
+//                 active={i + 1 === currentPage}
+//                 onClick={() => paginate(i + 1)}
+//               >
+//                 {i + 1}
+//               </Pagination.Item>
+//             ))}
+//           </Pagination>
+//         </div>
+//       )}
+//     </>
+//   );
+// };
+
+// // ====================
+// // PO TABLE COMPONENT
+// // ====================
+// const POApprovalTable = ({
+//   poList,
+//   currentPage,
+//   totalPages,
+//   paginate,
+//   onShowPOPreview,
+//   loading,
+//   onViewVendorPO,
+// }) => {
+//   const isAssigned = (po) => {
+//     return po.po_id != null && po.po_no != null;
+//   };
+
+//   return (
+//     <>
+//       <div className="table-responsive">
+//         <table className="table table-striped table-hover">
+//           <thead>
+//             <tr>
+//               <th>Sr. No.</th>
+//               <th>Vendor Name</th>
+//               <th>PO Number</th>
+//               <th>Total Amount</th>
+//               <th>Company</th>
+//               <th>PO Approval</th>
+//               <th>Status</th>
+//               <th>Actions</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//             {loading ? (
+//               <tr>
+//                 <td colSpan="8" className="text-center py-4">
+//                   <Spinner animation="border" role="status">
+//                     <span className="visually-hidden">Loading...</span>
+//                   </Spinner>
+//                 </td>
+//               </tr>
+//             ) : poList.length > 0 ? (
+//               poList.map((po, index) => {
+//                 const isApproved = isApprovedValue(po.po_approval);
+
+//                 return (
+//                   <tr key={po.po_id || `api-po-${index}`}>
+//                     <td>{(currentPage - 1) * 10 + index + 1}</td>
+//                     <td>{po.quotation_name || "Unknown"}</td>
+//                     <td>{po.po_no || "TBA"}</td>
+//                     <td>{po.total_amt ? `₹${Number(po.total_amt).toLocaleString('en-IN')}` : "N/A"}</td>
+//                     <td>{po.company || "N/A"}</td>
+                    
+//                     <td className="text-center">
+//                       <Form.Check
+//                         type="checkbox"
+//                         checked={isApproved}
+//                         disabled={isApproved}
+//                         onChange={() => {
+//                           if (!isApproved) onShowPOPreview(po);
+//                         }}
+//                       />
+//                     </td>
+                    
+//                     <td>
+//                       <div className="d-flex align-items-center gap-2">
+//                         <Badge
+//                           className={`px-3 py-2 ${
+//                             isApproved
+//                               ? "bg-success text-light"
+//                               : "bg-warning text-dark"
+//                           }`}
+//                         >
+//                           {isApproved ? "Approved" : "Pending"}
+//                         </Badge>
+
+//                         {isApproved && (
+//                           <Button
+//                             variant="outline-danger"
+//                             size="sm"
+//                             onClick={() => onShowPOPreview(po)}
+//                           >
+//                             <FaDownload />
+//                           </Button>
+//                         )}
+//                       </div>
+//                     </td>
+                    
+//                     <td>
+//                       {isAssigned(po) ? (
+//                         <>
+//                           <Button
+//                             className="buttonEye me-3"
+//                             title="View Vendor PO"
+//                             onClick={() => onViewVendorPO(po)}
+//                           >
+//                             <FaEye />
+//                           </Button>
+
+//                           <Button
+//                             as={Link}
+//                             to={`/annextureviewer/${po.po_id}`}
+//                             variant="danger"
+//                             size="sm"
+//                             title="View Annexure"
+//                           >
+//                             <FaReceipt />
+//                           </Button>
+//                         </>
+//                       ) : (
+//                         <Button
+//                           as={Link}
+//                           to="/annextureform/"
+//                           variant="danger ms-1"
+//                           size="sm"
+//                           title="Create Vendor PO"
+//                         >
+//                           <FaDownload /> create
+//                         </Button>
+//                       )}
+//                     </td>
+//                   </tr>
+//                 );
+//               })
+//             ) : (
+//               <tr>
+//                 <td colSpan="8" className="text-center p-4">
+//                   No Vendor PO records found.
+//                 </td>
+//               </tr>
+//             )}
+//           </tbody>
+//         </table>
+//       </div>
+
+//       {totalPages > 1 && (
+//         <div className="d-flex justify-content-center p-3">
+//           <Pagination>
+//             {Array.from({ length: totalPages }, (_, i) => (
+//               <Pagination.Item
+//                 key={i + 1}
+//                 active={i + 1 === currentPage}
+//                 onClick={() => paginate(i + 1)}
+//               >
+//                 {i + 1}
+//               </Pagination.Item>
+//             ))}
+//           </Pagination>
+//         </div>
+//       )}
+//     </>
+//   );
+// };
+
+// // ====================
+// // MAIN COMPONENT
+// // ====================
+// const AdminApproval = () => {
+//   const [mainTabKey, setMainTabKey] = useState("quote");
+  
+//   // Quote states
+//   const [allQuotes, setAllQuotes] = useState([]);
+//   const [quoteSearchTerm, setQuoteSearchTerm] = useState("");
+//   const [quoteDebouncedSearch, setQuoteDebouncedSearch] = useState("");
+//   const [quoteCurrentPage, setQuoteCurrentPage] = useState(1);
+//   const [quoteStatusFilter, setQuoteStatusFilter] = useState("all");
+//   const [showPDFPreview, setShowPDFPreview] = useState(false);
+//   const [selectedQuoteItem, setSelectedQuoteItem] = useState(null);
+  
+//   // PO states
+//   const [allPOs, setAllPOs] = useState([]);
+//   const [poSearchTerm, setPOSearchTerm] = useState("");
+//   const [poDebouncedSearch, setPODebouncedSearch] = useState("");
+//   const [poCurrentPage, setPOCurrentPage] = useState(1);
+//   const [poStatusFilter, setPOStatusFilter] = useState("all");
+//   const [poLoading, setPoLoading] = useState(true);
+//   const [showPOModal, setShowPOModal] = useState(false);
+//   const [selectedPOForModal, setSelectedPOForModal] = useState(null);
+//   const [poModalMode, setPOModalMode] = useState("view"); // "view" or "approve"
+
+//   const navigate = useNavigate();
+//   const itemsPerPage = 10;
+
+//   // Debounce search terms
+//   useEffect(() => {
+//     const t = setTimeout(() => setQuoteDebouncedSearch(quoteSearchTerm), 300);
+//     return () => clearTimeout(t);
+//   }, [quoteSearchTerm]);
+  
+//   useEffect(() => {
+//     const t = setTimeout(() => setPODebouncedSearch(poSearchTerm), 300);
+//     return () => clearTimeout(t);
+//   }, [poSearchTerm]);
+
+//   // Initial data fetch
+//   useEffect(() => {
+//     fetchQuotationList();
+//   }, []);
+  
+//   useEffect(() => {
+//     fetchPOList();
+//   }, []);
+
+//   // ===============
+//   // QUOTE FUNCTIONS
+//   // ===============
+//   const fetchQuotationList = async () => {
+//     try {
+//       const res = await fetch("https://nlfs.in/erp/index.php/Nlf_Erp/list_quotation");
+//       const data = await res.json();
+
+//       if (data.status === true || data.status === "true") {
+//         const cleanedData = (data.data || []).filter((q) => q.quote_id && q.name);
+
+//         const allQuotationRounds = cleanedData.map((quote) => {
+//           const formattedQuoteNo = formatQuoteNumber(quote.quote_no);
+//           const roundIdentifier =
+//             quote.revise && quote.revise !== "Original" ? quote.revise : "Initial";
+
+//           return {
+//             key: `${quote.quote_id}-${roundIdentifier}`,
+//             quote_id: quote.quote_id,
+//             formattedQuoteNo,
+//             name: quote.name,
+//             email: quote.email || "",
+//             mobile: quote.mobile || "",
+//             total: quote.total || "0",
+//             city: quote.city || "",
+//             branch: quote.branch || "",
+//             product: quote.product || "",
+//             description: quote.desc || "",
+//             roundIdentifier,
+//             date: quote.date || "",
+//             revise: quote.revise || "Original",
+//             rate_approval: quote.rate_approval || "",
+//             admin_approval: quote.admin_approval || "",
+//             role: quote.role || "",
+//           };
+//         });
+
+//         allQuotationRounds.sort((a, b) => {
+//           const dateA = a.date ? new Date(a.date).getTime() : 0;
+//           const dateB = b.date ? new Date(b.date).getTime() : 0;
+//           if (dateB !== dateA) return dateB - dateA;
+//           if (String(a.quote_id) === String(b.quote_id)) {
+//             return getRoundSortValue(b.roundIdentifier) - getRoundSortValue(a.roundIdentifier);
+//           }
+//           return (parseInt(b.quote_id, 10) || 0) - (parseInt(a.quote_id, 10) || 0);
+//         });
+
+//         setAllQuotes([...allQuotationRounds]);
+//       } else {
+//         setAllQuotes([]);
+//       }
+//     } catch (error) {
+//       console.error("FETCH ERROR:", error);
+//       setAllQuotes([]);
+//     }
+//   };
+  
+//   const eligibleForAdminApproval = useMemo(() => {
+//     return allQuotes.filter((q) => {
+//       const isRateApproved = isApprovedValue(q.rate_approval);
+//       const isCreatedByAdmin = q.role === "admin";
+//       return isRateApproved || isCreatedByAdmin;
+//     });
+//   }, [allQuotes]);
+
+//   const filteredQuotes = useMemo(() => {
+//     let candidates = [...eligibleForAdminApproval];
+//     if (quoteStatusFilter === "pending") {
+//       candidates = candidates.filter((q) => !isApprovedValue(q.admin_approval));
+//     } else if (quoteStatusFilter === "approved") {
+//       candidates = candidates.filter((q) => isApprovedValue(q.admin_approval));
+//     }
+//     if (quoteDebouncedSearch.trim()) {
+//       const s = quoteDebouncedSearch.toLowerCase();
+//       candidates = candidates.filter((q) =>
+//         (q.quote_id || "").toLowerCase().includes(s) ||
+//         (q.name || "").toLowerCase().includes(s) ||
+//         (q.date || "").toLowerCase().includes(s) ||
+//         (q.formattedQuoteNo || "").toLowerCase().includes(s) ||
+//         (q.roundIdentifier || "").toLowerCase().includes(s)
+//       );
+//     }
+//     return candidates.sort((a, b) => {
+//       const qA = parseInt(a.quote_id, 10) || 0;
+//       const qB = parseInt(b.quote_id, 10) || 0;
+//       if (qB !== qA) return qB - qA;
+//       return getRoundSortValue(b.roundIdentifier) - getRoundSortValue(a.roundIdentifier);
+//     });
+//   }, [eligibleForAdminApproval, quoteStatusFilter, quoteDebouncedSearch]);
+  
+//   const quoteTotalPages = Math.ceil(filteredQuotes.length / itemsPerPage);
+//   const quoteIndexOfLast = quoteCurrentPage * itemsPerPage;
+//   const quoteIndexOfFirst = quoteIndexOfLast - itemsPerPage;
+//   const currentQuotes = useMemo(() => {
+//     return filteredQuotes.slice(quoteIndexOfFirst, quoteIndexOfLast);
+//   }, [filteredQuotes, quoteIndexOfFirst, quoteIndexOfLast]);
+
+//   const handleQuoteSearchChange = (e) => {
+//     setQuoteSearchTerm(e.target.value);
+//     setQuoteCurrentPage(1);
+//   };
+
+//   const handleQuoteTabSelect = (key) => {
+//     setQuoteStatusFilter(key);
+//     setQuoteCurrentPage(1);
+//   };
+
+//   const quotePaginate = (num) => setQuoteCurrentPage(num);
+
+//   const handleShowPDFPreview = (item) => {
+//     setSelectedQuoteItem(item);
+//     setShowPDFPreview(true);
+//   };
+
+//   const handleClosePDFPreview = () => {
+//     setShowPDFPreview(false);
+//     setSelectedQuoteItem(null);
+//   };
+
+//   const handleAdminApprovedFromModal = (approvedQuoteId) => {
+//     setAllQuotes((prev) => {
+//       const updatedQuotes = prev.map((q) =>
+//         String(q.quote_id) === String(approvedQuoteId)
+//           ? { ...q, admin_approval: "Yes" }
+//           : q
+//       );
+//       return updatedQuotes;
+//     });
+    
+//     if (selectedQuoteItem && String(selectedQuoteItem.quote_id) === String(approvedQuoteId)) {
+//       setSelectedQuoteItem(prev => ({ ...prev, admin_approval: "Yes" }));
+//     }
+//   };
+  
+//   // ===============
+//   // PO FUNCTIONS
+//   // ===============
+//   const fetchPOList = async () => {
+//     setPoLoading(true);
+//     try {
+//       const res = await fetch("https://nlfs.in/erp/index.php/Api/list_po");
+//       const apiResponse = await res.json();
+//       const data = apiResponse.data || [];
+//       setAllPOs(Array.isArray(data) ? data : []);
+//     } catch (error) {
+//       console.error("FETCH ERROR:", error);
+//       setAllPOs([]);
+//     } finally {
+//       setPoLoading(false);
+//     }
+//   };
+  
+//   const filteredPOs = useMemo(() => {
+//     let result = allPOs.filter((po) => {
+//       const term = poDebouncedSearch.toLowerCase();
+//       return (
+//         (po.quotation_name && po.quotation_name.toLowerCase().includes(term)) ||
+//         (po.po_no && po.po_no.toLowerCase().includes(term)) ||
+//         (po.total_amt && String(po.total_amt).toLowerCase().includes(term)) ||
+//         (po.company && po.company.toLowerCase().includes(term))
+//       );
+//     });
+//     if (poStatusFilter === "pending") {
+//       result = result.filter((po) => !isApprovedValue(po.po_approval));
+//     } else if (poStatusFilter === "approved") {
+//       result = result.filter((po) => isApprovedValue(po.po_approval));
+//     }
+//     return result;
+//   }, [allPOs, poStatusFilter, poDebouncedSearch]);
+  
+//   const poTotalPages = Math.ceil(filteredPOs.length / itemsPerPage);
+//   const poIndexOfLast = poCurrentPage * itemsPerPage;
+//   const poIndexOfFirst = poIndexOfLast - itemsPerPage;
+//   const currentPOs = useMemo(() => {
+//     return filteredPOs.slice(poIndexOfFirst, poIndexOfLast);
+//   }, [filteredPOs, poIndexOfFirst, poIndexOfLast]);
+  
+//   const handlePOSearchChange = (e) => {
+//     setPOSearchTerm(e.target.value);
+//     setPOCurrentPage(1);
+//   };
+
+//   const handlePOTabSelect = (key) => {
+//     setPOStatusFilter(key);
+//     setPOCurrentPage(1);
+//   };
+
+//   const poPaginate = (num) => setPOCurrentPage(num);
+
+//   const handleShowPOPreview = (item) => {
+//     setSelectedPOForModal(item);
+//     setPOModalMode("approve");
+//     setShowPOModal(true);
+//   };
+
+//   const handlePOApprovedFromModal = async (approvedPOId) => {
+//     // Refresh the entire PO list from the server for instant update
+//     await fetchPOList();
+    
+//     // Close the modal
+//     setShowPOModal(false);
+//     setSelectedPOForModal(null);
+//   };
+
+//   const handleViewVendorPO = (po) => {
+//     setSelectedPOForModal(po);
+//     setPOModalMode("view");
+//     setShowPOModal(true);
+//   };
+
+//   const handleClosePOModal = () => {
+//     setShowPOModal(false);
+//     setSelectedPOForModal(null);
+//   };
+
+//   // ===============
+//   // RENDER
+//   // ===============
+//   return (
+//     <Container fluid>
+//       <Row>
+//         <Col md="12">
+//           <Card className="strpied-tabled-with-hover">
+//             <Card.Header
+//               style={{
+//                 backgroundColor: "#fff",
+//                 marginBottom: "2rem",
+//                 borderBottom: "none",
+//               }}
+//             >
+//               <Row className="align-items-center">
+//                 <Col>
+//                   <Card.Title style={{ marginTop: "1rem", fontWeight: "700" }}>
+//                     Admin Approval
+//                   </Card.Title>
+//                 </Col>
+//               </Row>
+//             </Card.Header>
+
+//             <Card.Body>
+//               <Tabs
+//                 id="main-approval-tabs"
+//                 activeKey={mainTabKey}
+//                 onSelect={(k) => setMainTabKey(k)}
+//                 className="mb-4"
+//               >
+//                 {/* ============ QUOTE TAB ============ */}
+//                 <Tab eventKey="quote" title="Quote Approval">
+//                   <Row className="mb-3">
+//                     <Col className="d-flex justify-content-end align-items-center">
+//                       <Form.Control
+//                         type="text"
+//                         placeholder="Search by Name, Quote No, Round..."
+//                         value={quoteSearchTerm}
+//                         onChange={handleQuoteSearchChange}
+//                         className="custom-searchbar-input nav-search"
+//                         style={{ width: "20vw" }}
+//                       />
+//                     </Col>
+//                   </Row>
+
+//                   <Tabs
+//                     id="quote-status-tabs"
+//                     activeKey={quoteStatusFilter}
+//                     onSelect={handleQuoteTabSelect}
+//                     className="mb-4"
+//                   >
+//                     <Tab eventKey="all" title="All" />
+//                     <Tab eventKey="pending" title="Pending Admin" />
+//                     <Tab eventKey="approved" title="Approved by Admin" />
+//                   </Tabs>
+
+//                   <AdminApprovalTable
+//                     quotes={currentQuotes}
+//                     currentPage={quoteCurrentPage}
+//                     totalPages={quoteTotalPages}
+//                     paginate={quotePaginate}
+//                     onShowPDFPreview={handleShowPDFPreview}
+//                   />
+//                 </Tab>
+
+//                 {/* ============ PO TAB ============ */}
+//                 <Tab eventKey="po" title="PO Approval">
+//                   <Row className="mb-3">
+//                     <Col className="d-flex justify-content-end align-items-center">
+//                       <Form.Control
+//                         type="text"
+//                         placeholder="Search by Vendor Name, PO No, Amount, Company..."
+//                         value={poSearchTerm}
+//                         onChange={handlePOSearchChange}
+//                         className="custom-searchbar-input nav-search"
+//                         style={{ width: "20vw" }}
+//                       />
+//                     </Col>
+//                   </Row>
+
+//                   <Tabs
+//                     id="po-status-tabs"
+//                     activeKey={poStatusFilter}
+//                     onSelect={handlePOTabSelect}
+//                     className="mb-4"
+//                   >
+//                     <Tab eventKey="all" title="All" />
+//                     <Tab eventKey="pending" title="Pending" />
+//                     <Tab eventKey="approved" title="Approved" />
+//                   </Tabs>
+
+//                   <POApprovalTable
+//                     poList={currentPOs}
+//                     currentPage={poCurrentPage}
+//                     totalPages={poTotalPages}
+//                     paginate={poPaginate}
+//                     onShowPOPreview={handleShowPOPreview}
+//                     loading={poLoading}
+//                     onViewVendorPO={handleViewVendorPO}
+//                   />
+//                 </Tab>
+//               </Tabs>
+//             </Card.Body>
+//           </Card>
+//         </Col>
+//       </Row>
+
+//       {/* ============ MODALS ============ */}
+      
+//       {/* Quote PDF Preview Modal */}
+//       <Suspense fallback={null}>
+//         {showPDFPreview && (
+//           <PDFPreview
+//             show={showPDFPreview}
+//             onHide={handleClosePDFPreview}
+//             quoteId={selectedQuoteItem?.quote_id}
+//             quotationData={selectedQuoteItem}
+//             enableRateApproval={false}
+//             enableAdminApproval={true}
+//             onAdminApproved={handleAdminApprovedFromModal}
+//           />
+//         )}
+//       </Suspense>
+      
+//       {/* PO Preview Modal - Used for both viewing and approving */}
+//       <Suspense fallback={null}>
+//         {showPOModal && (
+//           <POPreviewModal
+//             show={showPOModal}
+//             onHide={handleClosePOModal}
+//             poData={selectedPOForModal}
+//             enableApproval={poModalMode === "approve"}
+//             onPOApproved={handlePOApprovedFromModal}
+//           />
+//         )}
+//       </Suspense>
+//     </Container>
+//   );
+// };
+
 // export default AdminApproval;
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import {
   Card,
   Container,
@@ -12,50 +750,42 @@ import {
   Tabs,
   Tab,
   Badge,
+  Spinner,
   Modal,
 } from "react-bootstrap";
-import { FaDownload } from "react-icons/fa";
-import PDFPreview from "../components/PDFpreview.jsx";
-import axios from "axios";
+import { FaDownload, FaEye, FaReceipt, FaFileDownload } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
 
-/* 
-=======================
-OPTION B FORMATTER
-=======================
-✔ Only show quote_no from API
-✔ If quote_no is empty → "-"
-✔ Do NOT generate anything using quote_id
-*/
+// ✅ LAZY-LOAD PDFPreview and POPreviewModal
+const PDFPreview = lazy(() => import("../components/PDFpreview.jsx"));
+const POPreviewModal = lazy(() => import("../components/POPreviewModal"));
+
+// ===============
+// UTILS
+// ===============
 const formatQuoteNumber = (quoteNo) => {
   return quoteNo && quoteNo.trim() !== "" ? quoteNo : "-";
 };
 
-// treat many variants of approved values as true
 const isApprovedValue = (val) => {
   if (!val) return false;
   const s = String(val).trim().toLowerCase();
   return ["yes", "approved", "true", "1"].includes(s);
 };
 
-// Helper function to get round sort value
 const getRoundSortValue = (roundId) => {
   if (!roundId || roundId === "Initial") return 0;
   const match = roundId.match(/^R(\d+)$/);
   return match ? parseInt(match[1]) : 0;
 };
 
-// Helper function to format display date
 const formatDisplayDate = (dateStr) => {
   if (!dateStr) return "-";
-
-  // Try simple yyyy-mm-dd
   const parts = dateStr.split("-");
   if (parts.length === 3 && parts[0].length === 4) {
     const [y, m, d] = parts;
     return `${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}-${y}`;
   }
-
-  // Fallback: parse with Date
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) {
     const dd = String(d.getDate()).padStart(2, "0");
@@ -63,53 +793,344 @@ const formatDisplayDate = (dateStr) => {
     const yy = d.getFullYear();
     return `${dd}-${mm}-${yy}`;
   }
-
-  // If parsing fails, just show original
   return dateStr;
 };
 
-const AdminApproval = () => {
-  const [quotes, setQuotes] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState("rate");
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
-  const [showPDFPreview, setShowPDFPreview] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+// ====================
+// QUOTE TABLE COMPONENT
+// ====================
+const AdminApprovalTable = ({
+  quotes,
+  currentPage,
+  totalPages,
+  paginate,
+  onShowPDFPreview,
+}) => {
+  return (
+    <>
+      <div className="table-responsive">
+        <table className="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>Sr. No.</th>
+              <th>Quotation No</th>
+              <th>Client Name</th>
+              <th>Date</th>
+              <th>Amount (₹)</th>
+              <th>Admin Approval</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+           {quotes.length > 0 ? (
+  quotes.map((item, index) => {
+    const isAdminApproved = isApprovedValue(item.admin_approval);
+    const isRateApproved = isApprovedValue(item.rate_approval);
+    const isCreatedByAdmin = item.role === "admin";
 
+    return (
+      <tr key={item.key}>
+        <td>{(currentPage - 1) * 10 + index + 1}</td>
+        <td>
+          <div>
+            {item.formattedQuoteNo}
+            {/* Show a badge if this is an admin-created quote */}
+            {isCreatedByAdmin && (
+              <Badge className="ms-2" bg="info">Admin Created</Badge>
+            )}
+            {/* Show a badge if this is a rate-approved quote */}
+            {!isCreatedByAdmin && isRateApproved && (
+              <Badge className="ms-2" bg="success">Rate Approved</Badge>
+            )}
+          </div>
+        </td>
+        <td>{item.name}</td>
+        <td>{formatDisplayDate(item.date)}</td>
+        <td>₹ {parseFloat(item.total || 0).toLocaleString("en-IN")}</td>
+
+        {/* Checkbox */}
+        <td className="text-center">
+          <Form.Check
+            type="checkbox"
+            checked={isAdminApproved}
+            disabled={isAdminApproved}
+            onChange={() => {
+              if (!isAdminApproved) onShowPDFPreview(item);
+            }}
+          />
+        </td>
+
+        {/* Status + Download */}
+        <td>
+          <div className="d-flex align-items-center gap-2">
+            <Badge
+              className={`px-3 py-2 ${
+                isAdminApproved
+                  ? "bg-success text-light"
+                  : "bg-warning text-dark"
+              }`}
+            >
+              {isAdminApproved ? "Approved" : "Pending"}
+            </Badge>
+
+            {isAdminApproved && (
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={() => onShowPDFPreview(item)}
+              >
+                <FaFileDownload />
+              </Button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  })
+) : (
+              <tr>
+                <td colSpan="7" className="text-center p-4">
+                  finding quotations
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="d-flex justify-content-center p-3">
+          <Pagination>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <Pagination.Item
+                key={i + 1}
+                active={i + 1 === currentPage}
+                onClick={() => paginate(i + 1)}
+              >
+                {i + 1}
+              </Pagination.Item>
+            ))}
+          </Pagination>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ====================
+// PO TABLE COMPONENT
+// ====================
+const POApprovalTable = ({
+  poList,
+  currentPage,
+  totalPages,
+  paginate,
+  onShowPOPreview,
+  loading,
+  onViewVendorPO,
+}) => {
+  const isAssigned = (po) => {
+    return po.po_id != null && po.po_no != null;
+  };
+
+  return (
+    <>
+      <div className="table-responsive">
+        <table className="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>Sr. No.</th>
+              <th>Vendor Name</th>
+              <th>PO Number</th>
+              <th>Total Amount</th>
+              <th>Company</th>
+              <th>PO Approval</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="text-center py-4">
+                  <Spinner animation="border" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </Spinner>
+                </td>
+              </tr>
+            ) : poList.length > 0 ? (
+              poList.map((po, index) => {
+                const isApproved = isApprovedValue(po.po_approval);
+
+                return (
+                  <tr key={po.po_id || `api-po-${index}`}>
+                    <td>{(currentPage - 1) * 10 + index + 1}</td>
+                    <td>{po.quotation_name || "Unknown"}</td>
+                    <td>{po.po_no || "TBA"}</td>
+                    <td>{po.total_amt ? `₹${Number(po.total_amt).toLocaleString('en-IN')}` : "N/A"}</td>
+                    <td>{po.company || "N/A"}</td>
+                    
+                    <td className="text-center">
+                      <Form.Check
+                        type="checkbox"
+                        checked={isApproved}
+                        disabled={isApproved}
+                        onChange={() => {
+                          if (!isApproved) onShowPOPreview(po);
+                        }}
+                      />
+                    </td>
+                    
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        <Badge
+                          className={`px-3 py-2 ${
+                            isApproved
+                              ? "bg-success text-light"
+                              : "bg-warning text-dark"
+                          }`}
+                        >
+                          {isApproved ? "Approved" : "Pending"}
+                        </Badge>
+
+                        {isApproved && (
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => onShowPOPreview(po)}
+                          >
+                            <FaDownload />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td>
+                      {isAssigned(po) ? (
+                        <>
+                          <Button
+                            className="buttonEye me-3"
+                            title="View Vendor PO"
+                            onClick={() => onViewVendorPO(po)}
+                          >
+                            <FaEye />
+                          </Button>
+
+                        </>
+                      ) : (
+                        <Button
+                          as={Link}
+                          to="/annextureform/"
+                          variant="danger ms-1"
+                          size="sm"
+                          title="Create Vendor PO"
+                        >
+                          <FaDownload /> create
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="8" className="text-center p-4">
+                  No Vendor PO records found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="d-flex justify-content-center p-3">
+          <Pagination>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <Pagination.Item
+                key={i + 1}
+                active={i + 1 === currentPage}
+                onClick={() => paginate(i + 1)}
+              >
+                {i + 1}
+              </Pagination.Item>
+            ))}
+          </Pagination>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ====================
+// MAIN COMPONENT
+// ====================
+const AdminApproval = () => {
+  const [mainTabKey, setMainTabKey] = useState("quote");
+  
+  // Quote states
+  const [allQuotes, setAllQuotes] = useState([]);
+  const [quoteSearchTerm, setQuoteSearchTerm] = useState("");
+  const [quoteDebouncedSearch, setQuoteDebouncedSearch] = useState("");
+  const [quoteCurrentPage, setQuoteCurrentPage] = useState(1);
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState("all");
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
+  const [selectedQuoteItem, setSelectedQuoteItem] = useState(null);
+  
+  // PO states
+  const [allPOs, setAllPOs] = useState([]);
+  const [poSearchTerm, setPOSearchTerm] = useState("");
+  const [poDebouncedSearch, setPODebouncedSearch] = useState("");
+  const [poCurrentPage, setPOCurrentPage] = useState(1);
+  const [poStatusFilter, setPOStatusFilter] = useState("all");
+  const [poLoading, setPoLoading] = useState(true);
+  const [showPOModal, setShowPOModal] = useState(false);
+  const [selectedPOForModal, setSelectedPOForModal] = useState(null);
+  const [poModalMode, setPOModalMode] = useState("view"); // "view" or "approve"
+
+  const navigate = useNavigate();
   const itemsPerPage = 10;
 
+  // Debounce search terms
+  useEffect(() => {
+    const t = setTimeout(() => setQuoteDebouncedSearch(quoteSearchTerm), 300);
+    return () => clearTimeout(t);
+  }, [quoteSearchTerm]);
+  
+  useEffect(() => {
+    const t = setTimeout(() => setPODebouncedSearch(poSearchTerm), 300);
+    return () => clearTimeout(t);
+  }, [poSearchTerm]);
+
+  // Initial data fetch
   useEffect(() => {
     fetchQuotationList();
   }, []);
+  
+  useEffect(() => {
+    fetchPOList();
+  }, []);
 
+  // ===============
+  // QUOTE FUNCTIONS
+  // ===============
   const fetchQuotationList = async () => {
     try {
-      const res = await fetch("https://nlfs.in/erp/index.php/Nlf_Erp/list_quotation  ");
+      const res = await fetch("https://nlfs.in/erp/index.php/Nlf_Erp/list_quotation");
       const data = await res.json();
 
       if (data.status === true || data.status === "true") {
         const cleanedData = (data.data || []).filter((q) => q.quote_id && q.name);
 
-        // 🔻 Create an array of all quotation rounds similar to ClientLead.jsx
-        const allQuotationRounds = [];
-
-        cleanedData.forEach((quote) => {
-          if (!quote || !quote.quote_id) return;
-
+        const allQuotationRounds = cleanedData.map((quote) => {
           const formattedQuoteNo = formatQuoteNumber(quote.quote_no);
-
-          // Derive round identifier from revise field
           const roundIdentifier =
-            quote.revise && quote.revise !== "Original"
-              ? quote.revise // e.g. "R1", "R2"
-              : "Initial";
+            quote.revise && quote.revise !== "Original" ? quote.revise : "Initial";
 
-          allQuotationRounds.push({
+          return {
             key: `${quote.quote_id}-${roundIdentifier}`,
             quote_id: quote.quote_id,
-            formattedQuoteNo: formattedQuoteNo,
+            formattedQuoteNo,
             name: quote.name,
             email: quote.email || "",
             mobile: quote.mobile || "",
@@ -118,179 +1139,201 @@ const AdminApproval = () => {
             branch: quote.branch || "",
             product: quote.product || "",
             description: quote.desc || "",
-            roundIdentifier, // Now meaningful
-            date: quote.date || "", // raw API date
+            roundIdentifier,
+            date: quote.date || "",
             revise: quote.revise || "Original",
             rate_approval: quote.rate_approval || "",
             admin_approval: quote.admin_approval || "",
-          });
+            role: quote.role || "",
+          };
         });
 
-        // 🔻 SORT: latest created/revised first (same logic as ClientLead.jsx)
         allQuotationRounds.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : new Date(0);
-          const dateB = b.date ? new Date(b.date) : new Date(0);
-
-          // 1) Newer date first
-          if (dateB - dateA !== 0) return dateB - dateA;
-
-          // 2) For same quote & same date, higher round (R2 > R1 > Initial)
-          const sameQuote =
-            String(a.formattedQuoteNo) === String(b.formattedQuoteNo) ||
-            String(a.quote_id) === String(b.quote_id);
-
-          if (sameQuote) {
-            const rA = getRoundSortValue(a.roundIdentifier);
-            const rB = getRoundSortValue(b.roundIdentifier);
-            if (rB - rA !== 0) return rB - rA;
+          const dateA = a.date ? new Date(a.date).getTime() : 0;
+          const dateB = b.date ? new Date(b.date).getTime() : 0;
+          if (dateB !== dateA) return dateB - dateA;
+          if (String(a.quote_id) === String(b.quote_id)) {
+            return getRoundSortValue(b.roundIdentifier) - getRoundSortValue(a.roundIdentifier);
           }
-
-          // 3) Fallback: higher quotationId first
-          const idA = parseInt(a.quote_id, 10) || 0;
-          const idB = parseInt(b.quote_id, 10) || 0;
-          return idB - idA;
+          return (parseInt(b.quote_id, 10) || 0) - (parseInt(a.quote_id, 10) || 0);
         });
 
-        setQuotes(allQuotationRounds);
+        setAllQuotes([...allQuotationRounds]);
       } else {
-        setQuotes([]);
+        setAllQuotes([]);
       }
     } catch (error) {
-      console.log("FETCH ERROR:", error);
-      setQuotes([]);
+      console.error("FETCH ERROR:", error);
+      setAllQuotes([]);
     }
   };
+  
+  const eligibleForAdminApproval = useMemo(() => {
+    return allQuotes.filter((q) => {
+      const isRateApproved = isApprovedValue(q.rate_approval);
+      const isCreatedByAdmin = q.role === "admin";
+      return isRateApproved || isCreatedByAdmin;
+    });
+  }, [allQuotes]);
 
-  const handleShowModal = (action) => {
-    setPendingAction(action);
-    setShowConfirmModal(true);
+  const filteredQuotes = useMemo(() => {
+    let candidates = [...eligibleForAdminApproval];
+    if (quoteStatusFilter === "pending") {
+      candidates = candidates.filter((q) => !isApprovedValue(q.admin_approval));
+    } else if (quoteStatusFilter === "approved") {
+      candidates = candidates.filter((q) => isApprovedValue(q.admin_approval));
+    }
+    if (quoteDebouncedSearch.trim()) {
+      const s = quoteDebouncedSearch.toLowerCase();
+      candidates = candidates.filter((q) =>
+        (q.quote_id || "").toLowerCase().includes(s) ||
+        (q.name || "").toLowerCase().includes(s) ||
+        (q.date || "").toLowerCase().includes(s) ||
+        (q.formattedQuoteNo || "").toLowerCase().includes(s) ||
+        (q.roundIdentifier || "").toLowerCase().includes(s)
+      );
+    }
+    return candidates.sort((a, b) => {
+      const qA = parseInt(a.quote_id, 10) || 0;
+      const qB = parseInt(b.quote_id, 10) || 0;
+      if (qB !== qA) return qB - qA;
+      return getRoundSortValue(b.roundIdentifier) - getRoundSortValue(a.roundIdentifier);
+    });
+  }, [eligibleForAdminApproval, quoteStatusFilter, quoteDebouncedSearch]);
+  
+  const quoteTotalPages = Math.ceil(filteredQuotes.length / itemsPerPage);
+  const quoteIndexOfLast = quoteCurrentPage * itemsPerPage;
+  const quoteIndexOfFirst = quoteIndexOfLast - itemsPerPage;
+  const currentQuotes = useMemo(() => {
+    return filteredQuotes.slice(quoteIndexOfFirst, quoteIndexOfLast);
+  }, [filteredQuotes, quoteIndexOfFirst, quoteIndexOfLast]);
+
+  const handleQuoteSearchChange = (e) => {
+    setQuoteSearchTerm(e.target.value);
+    setQuoteCurrentPage(1);
   };
 
-  const handleConfirmAction = () => {
-    pendingAction?.execute();
-    setShowConfirmModal(false);
-    setPendingAction(null);
+  const handleQuoteTabSelect = (key) => {
+    setQuoteStatusFilter(key);
+    setQuoteCurrentPage(1);
   };
 
-  const handleCancelAction = () => {
-    setShowConfirmModal(false);
-    setPendingAction(null);
-  };
+  const quotePaginate = (num) => setQuoteCurrentPage(num);
 
   const handleShowPDFPreview = (item) => {
-    setSelectedItem(item);
+    setSelectedQuoteItem(item);
     setShowPDFPreview(true);
   };
 
   const handleClosePDFPreview = () => {
     setShowPDFPreview(false);
-    setSelectedItem(null);
+    setSelectedQuoteItem(null);
   };
 
-  // ⭐ NEW: when rate is approved from PDFPreview, update this table
-  const handleRateApprovedFromModal = (approvedQuoteId) => {
-    setQuotes((prev) =>
-      prev.map((q) =>
+  const handleAdminApprovedFromModal = (approvedQuoteId) => {
+    setAllQuotes((prev) => {
+      const updatedQuotes = prev.map((q) =>
         String(q.quote_id) === String(approvedQuoteId)
-          ? { ...q, rate_approval: "Yes" }
+          ? { ...q, admin_approval: "Yes" }
           : q
-      )
-    );
-  };
-
-  // ---------------- QUOTATION APPROVAL (no longer used in UI) ----------------
-  const handleApproveQuotation = (quote_id) => {
-    const quote = quotes.find((q) => q.quote_id === quote_id);
-    const isRateApproved = isApprovedValue(quote?.rate_approval);
-
-    if (!isRateApproved) {
-      handleShowModal({
-        message: "You must approve the Rate first!",
-        isError: true,
-        execute: () => {},
-      });
-      return;
+      );
+      return updatedQuotes;
+    });
+    
+    if (selectedQuoteItem && String(selectedQuoteItem.quote_id) === String(approvedQuoteId)) {
+      setSelectedQuoteItem(prev => ({ ...prev, admin_approval: "Yes" }));
     }
-
-    const action = {
-      message: "Are you sure you want to approve this Quotation?",
-      execute: async () => {
-        try {
-          const res = await fetch(
-            "https://nlfs.in/erp/index.php/Nlf_Erp/update_admin_approval",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                quote_id,
-                admin_approval: "Yes",
-              }),
-            }
-          );
-
-          const result = await res.json();
-
-          if (result.status === true || result.status === "true") {
-            setQuotes((prev) =>
-              prev.map((q) =>
-                q.quote_id === quote_id
-                  ? { ...q, admin_approval: "approved" }
-                  : q
-              )
-            );
-
-            alert("Quotation approved successfully!");
-          } else {
-            alert("Failed to approve quotation.");
-          }
-        } catch (err) {
-          alert("Error: " + err.message);
-        }
-      },
-    };
-
-    handleShowModal(action);
+  };
+  
+  // ===============
+  // PO FUNCTIONS
+  // ===============
+  const fetchPOList = async () => {
+    setPoLoading(true);
+    try {
+      const res = await fetch("https://nlfs.in/erp/index.php/Api/list_po");
+      const apiResponse = await res.json();
+      const data = apiResponse.data || [];
+      setAllPOs(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("FETCH ERROR:", error);
+      setAllPOs([]);
+    } finally {
+      setPoLoading(false);
+    }
+  };
+  
+  const filteredPOs = useMemo(() => {
+    let result = allPOs.filter((po) => {
+      const term = poDebouncedSearch.toLowerCase();
+      return (
+        (po.quotation_name && po.quotation_name.toLowerCase().includes(term)) ||
+        (po.po_no && po.po_no.toLowerCase().includes(term)) ||
+        (po.total_amt && String(po.total_amt).toLowerCase().includes(term)) ||
+        (po.company && po.company.toLowerCase().includes(term))
+      );
+    });
+    if (poStatusFilter === "pending") {
+      result = result.filter((po) => !isApprovedValue(po.po_approval));
+    } else if (poStatusFilter === "approved") {
+      result = result.filter((po) => isApprovedValue(po.po_approval));
+    }
+    return result;
+  }, [allPOs, poStatusFilter, poDebouncedSearch]);
+  
+  const poTotalPages = Math.ceil(filteredPOs.length / itemsPerPage);
+  const poIndexOfLast = poCurrentPage * itemsPerPage;
+  const poIndexOfFirst = poIndexOfLast - itemsPerPage;
+  const currentPOs = useMemo(() => {
+    return filteredPOs.slice(poIndexOfFirst, poIndexOfLast);
+  }, [filteredPOs, poIndexOfFirst, poIndexOfLast]);
+  
+  const handlePOSearchChange = (e) => {
+    setPOSearchTerm(e.target.value);
+    setPOCurrentPage(1);
   };
 
-  const filteredQuotes = quotes.filter((q) => {
-    const s = searchTerm.toLowerCase();
-    return (
-      (q.quote_id || "").toLowerCase().includes(s) ||
-      (q.name || "").toLowerCase().includes(s) ||
-      (q.date || "").toLowerCase().includes(s) ||
-      (q.formattedQuoteNo || "").toLowerCase().includes(s) ||
-      (q.roundIdentifier || "").toLowerCase().includes(s)
-    );
-  });
+  const handlePOTabSelect = (key) => {
+    setPOStatusFilter(key);
+    setPOCurrentPage(1);
+  };
 
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentQuotes = filteredQuotes.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredQuotes.length / itemsPerPage);
+  const poPaginate = (num) => setPOCurrentPage(num);
 
-  const paginate = (num) => setCurrentPage(num);
+  const handleShowPOPreview = (item) => {
+    setSelectedPOForModal(item);
+    setPOModalMode("approve");
+    setShowPOModal(true);
+  };
 
+  const handlePOApprovedFromModal = async (approvedPOId) => {
+    // Refresh the entire PO list from the server for instant update
+    await fetchPOList();
+    
+    // Close the modal
+    setShowPOModal(false);
+    setSelectedPOForModal(null);
+  };
+
+  const handleViewVendorPO = (po) => {
+    setSelectedPOForModal(po);
+    setPOModalMode("view");
+    setShowPOModal(true);
+  };
+
+  const handleClosePOModal = () => {
+    setShowPOModal(false);
+    setSelectedPOForModal(null);
+  };
+
+  // ===============
+  // RENDER
+  // ===============
   return (
     <Container fluid>
       <Row>
         <Col md="12">
           <Card className="strpied-tabled-with-hover">
-            <Tabs
-              id="approval-tabs"
-              activeKey={activeTab}
-              onSelect={(k) => {
-                setActiveTab(k);
-                setSearchTerm("");
-                setCurrentPage(1);
-              }}
-              className="mb-0 card-top-tabs"
-            >
-              <Tab eventKey="rate" title="Rate Approval" />
-              {/* Quotation Approval tab removed */}
-              <Tab eventKey="work_order" title="Work Order Approval" />
-              <Tab eventKey="PO" title="PO Vendor Approval" />
-            </Tabs>
-
             <Card.Header
               style={{
                 backgroundColor: "#fff",
@@ -300,201 +1343,128 @@ const AdminApproval = () => {
             >
               <Row className="align-items-center">
                 <Col>
-                  <Card.Title
-                    style={{ marginTop: "2rem", fontWeight: "700" }}
-                  >
-                    Admin's Approval
+                  <Card.Title style={{ marginTop: "1rem", fontWeight: "700" }}>
+                    Admin Approval
                   </Card.Title>
-                </Col>
-
-                <Col className="d-flex justify-content-end align-items-center">
-                  <Form.Control
-                    type="text"
-                    placeholder="Search by Name, Quote No, Round..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="custom-searchbar-input nav-search"
-                    style={{ width: "20vw" }}
-                  />
                 </Col>
               </Row>
             </Card.Header>
 
             <Card.Body>
-              {activeTab === "rate" && (
-                <QuoteApprovalTable
-                  quotes={currentQuotes}
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  paginate={paginate}
-                  onShowPDFPreview={handleShowPDFPreview}
-                  approvalField="rate_approval"
-                  approvalButtonLabel="Approve Rate"
-                />
-              )}
+              <Tabs
+                id="main-approval-tabs"
+                activeKey={mainTabKey}
+                onSelect={(k) => setMainTabKey(k)}
+                className="mb-4"
+              >
+                {/* ============ QUOTE TAB ============ */}
+                <Tab eventKey="quote" title="Quote Approval">
+                  <Row className="mb-3">
+                    <Col className="d-flex justify-content-end align-items-center">
+                      <Form.Control
+                        type="text"
+                        placeholder="Search by Name, Quote No, Round..."
+                        value={quoteSearchTerm}
+                        onChange={handleQuoteSearchChange}
+                        className="custom-searchbar-input nav-search"
+                        style={{ width: "20vw" }}
+                      />
+                    </Col>
+                  </Row>
 
-              {/* Quotation Approval table block removed completely */}
-              {/* You can later add content for work_order / PO tabs here if needed */}
+                  <Tabs
+                    id="quote-status-tabs"
+                    activeKey={quoteStatusFilter}
+                    onSelect={handleQuoteTabSelect}
+                    className="mb-4"
+                  >
+                    <Tab eventKey="all" title="All" />
+                    <Tab eventKey="pending" title="Pending Admin" />
+                    <Tab eventKey="approved" title="Approved by Admin" />
+                  </Tabs>
+
+                  <AdminApprovalTable
+                    quotes={currentQuotes}
+                    currentPage={quoteCurrentPage}
+                    totalPages={quoteTotalPages}
+                    paginate={quotePaginate}
+                    onShowPDFPreview={handleShowPDFPreview}
+                  />
+                </Tab>
+
+                {/* ============ PO TAB ============ */}
+                <Tab eventKey="po" title="PO Approval">
+                  <Row className="mb-3">
+                    <Col className="d-flex justify-content-end align-items-center">
+                      <Form.Control
+                        type="text"
+                        placeholder="Search by Vendor Name, PO No, Amount, Company..."
+                        value={poSearchTerm}
+                        onChange={handlePOSearchChange}
+                        className="custom-searchbar-input nav-search"
+                        style={{ width: "20vw" }}
+                      />
+                    </Col>
+                  </Row>
+
+                  <Tabs
+                    id="po-status-tabs"
+                    activeKey={poStatusFilter}
+                    onSelect={handlePOTabSelect}
+                    className="mb-4"
+                  >
+                    <Tab eventKey="all" title="All" />
+                    <Tab eventKey="pending" title="Pending" />
+                    <Tab eventKey="approved" title="Approved" />
+                  </Tabs>
+
+                  <POApprovalTable
+                    poList={currentPOs}
+                    currentPage={poCurrentPage}
+                    totalPages={poTotalPages}
+                    paginate={poPaginate}
+                    onShowPOPreview={handleShowPOPreview}
+                    loading={poLoading}
+                    onViewVendorPO={handleViewVendorPO}
+                  />
+                </Tab>
+              </Tabs>
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      <Modal show={showConfirmModal} onHide={handleCancelAction} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {pendingAction?.isError ? "Error" : "Confirmation"}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="text-center">
-          <p>{pendingAction?.message}</p>
-        </Modal.Body>
-        <Modal.Footer>
-          {pendingAction?.isError ? (
-            <Button variant="primary" onClick={handleCancelAction}>
-              OK
-            </Button>
-          ) : (
-            <>
-              <Button variant="secondary" onClick={handleCancelAction}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleConfirmAction}>
-                Yes, Proceed
-              </Button>
-            </>
-          )}
-        </Modal.Footer>
-      </Modal>
-
-      {/* ⭐ Now PDFPreview is responsible for Rate Approval, same style as Admin Approval */}
-      <PDFPreview
-        show={showPDFPreview}
-        onHide={handleClosePDFPreview}
-        quoteId={selectedItem?.quote_id}
-        quotationData={selectedItem}
-        enableRateApproval={true}
-        enableAdminApproval={false} // this page is ONLY for rate
-        onRateApproved={handleRateApprovedFromModal}
-      />
+      {/* ============ MODALS ============ */}
+      
+      {/* Quote PDF Preview Modal */}
+      <Suspense fallback={null}>
+        {showPDFPreview && (
+          <PDFPreview
+            show={showPDFPreview}
+            onHide={handleClosePDFPreview}
+            quoteId={selectedQuoteItem?.quote_id}
+            quotationData={selectedQuoteItem}
+            enableRateApproval={false}
+            enableAdminApproval={true}
+            onAdminApproved={handleAdminApprovedFromModal}
+          />
+        )}
+      </Suspense>
+      
+      {/* PO Preview Modal - Used for both viewing and approving */}
+      <Suspense fallback={null}>
+        {showPOModal && (
+          <POPreviewModal
+            show={showPOModal}
+            onHide={handleClosePOModal}
+            poData={selectedPOForModal}
+            enableApproval={poModalMode === "approve"}
+            onPOApproved={handlePOApprovedFromModal}
+          />
+        )}
+      </Suspense>
     </Container>
   );
 };
-
-const QuoteApprovalTable = ({
-  quotes,
-  currentPage,
-  totalPages,
-  paginate,
-  onShowPDFPreview,
-  approvalField = "admin_approval",
-  approvalButtonLabel = "Approve",
-}) => (
-  <>
-    <div className="table-responsive">
-      <table className="table table-striped table-hover">
-        <thead>
-          <tr>
-            <th>Sr. No.</th>
-            <th>Quotation No</th>
-            {/* <th>Round</th> */}
-            <th>Client Name</th>
-            <th>Date</th>
-            <th>Amount (₹)</th>
-            <th>{approvalButtonLabel}</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {quotes.length > 0 ? (
-            quotes.map((item, index) => {
-              const isApproved = isApprovedValue(item[approvalField]);
-
-              return (
-                <tr key={item.key}>
-                  <td>{(currentPage - 1) * 10 + index + 1}</td>
-                  <td>{item.formattedQuoteNo}</td>
-                  {/* <td>
-                    <Badge 
-                      bg={item.roundIdentifier === "Initial" ? "primary" : "info"}
-                      className="px-2 py-1"
-                    >
-                      {item.roundIdentifier}
-                    </Badge>
-                  </td> */}
-                  <td>{item.name}</td>
-                  <td>{formatDisplayDate(item.date)}</td>
-                  <td>
-                    ₹ {parseFloat(item.total || 0).toLocaleString("en-IN")}
-                  </td>
-
-                  {/* ✅ Click to open PDF & approve rate INSIDE the modal */}
-                  <td className="text-center">
-                    <Form.Check
-                      type="checkbox"
-                      checked={isApproved}
-                      disabled={isApproved}
-                      onChange={() => {
-                        if (!isApproved) onShowPDFPreview(item);
-                      }}
-                    />
-                  </td>
-
-                  <td>
-                    <div className="d-flex align-items-center gap-2">
-                      <Badge
-                        className={`px-3 py-2 ${
-                          isApproved
-                            ? "bg-success text-light"
-                            : "bg-warning text-dark"
-                        }`}
-                      >
-                        {isApproved ? "Approved" : "Pending"}
-                      </Badge>
-
-                      {/* Download always available AFTER rate approval */}
-                      {isApproved && (
-                        <Button
-                          variant="outline-danger"
-                          size="sm"
-                          onClick={() => onShowPDFPreview(item)}
-                        >
-                          <FaDownload />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <td colSpan="8" className="text-center p-4">
-                finding quotations
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-
-    {totalPages > 1 && (
-      <div className="d-flex justify-content-center p-3">
-        <Pagination>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <Pagination.Item
-              key={i + 1}
-              active={i + 1 === currentPage}
-              onClick={() => paginate(i + 1)}
-            >
-              {i + 1}
-            </Pagination.Item>
-          ))}
-        </Pagination>
-      </div>
-    )}
-  </>
-);
 
 export default AdminApproval;

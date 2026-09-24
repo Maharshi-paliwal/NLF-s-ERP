@@ -33,8 +33,6 @@ const STAGE_COLOR_MAP = {
   lost: "#dc3545",              // Red
 };
 
-
-
 // Helper: format date for display (dd-mm-yyyy)
 const formatDisplayDate = (dateString) => {
   if (
@@ -69,6 +67,10 @@ const normalizeEmpId = (val) => {
 const normalizeStage = (s) => (s || "").toLowerCase().trim();
 
 export default function LeadGeneration() {
+  // *** NEW: State for current logged-in user ***
+  const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSalesperson, setSelectedSalesperson] = useState(""); // will store empId
   const [startDate, setStartDate] = useState(null);
@@ -96,6 +98,14 @@ export default function LeadGeneration() {
   // Track if we have a "lost" stage in our options
   const [lostStageValue, setLostStageValue] = useState("");
 
+  // *** NEW: useEffect to get user session data on component mount ***
+  useEffect(() => {
+    const role = sessionStorage.getItem('userRole'); // Assuming key is 'userRole'
+    const empId = sessionStorage.getItem('employeeId'); // Assuming key is 'employeeId'
+    setCurrentUserRole(role);
+    setCurrentUserId(empId);
+  }, []);
+
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
@@ -119,12 +129,9 @@ export default function LeadGeneration() {
     fetchDepartments();
   }, []);
 
-
 const FINAL_SUCCESS_STAGES = new Set([
   "closed",
 ]);
-
-
 
   // Update stageOrderMap and lostStageValue whenever stageOptions changes
   useEffect(() => {
@@ -219,12 +226,15 @@ const FINAL_SUCCESS_STAGES = new Set([
     }
   };
 
-  // ---------- Fetch on mount ----------
+  // *** MODIFIED: Fetch on mount, conditionally call fetchSalespersons ***
   useEffect(() => {
     fetchLeads();
     fetchStages();
-    fetchSalespersons();
-  }, []);
+    // Only fetch the list of all salespeople if the current user is NOT a salesperson
+    if (currentUserRole !== 'sales') {
+      fetchSalespersons();
+    }
+  }, [currentUserRole]); // Add currentUserRole as a dependency
 
   useEffect(() => {
     if (!leadLoading && !salespersonLoading) {
@@ -323,14 +333,19 @@ const FINAL_SUCCESS_STAGES = new Set([
   const fetchSalespersons = async () => {
     setSalespersonLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/sale_person_list`, {
+      const res = await fetch(`${API_BASE}/employee_list`, {
         method: "POST",
       });
       const data = await res.json();
 
       if (data.status && data.success === "1" && Array.isArray(data.data)) {
+        // Filter to only include users with the "sales" role
+        const salesPersons = data.data.filter(employee => 
+          employee.role && employee.role.toLowerCase() === "sales"
+        );
+        
         // Normalize each salesperson object to { emp_id, name }
-        const normalized = data.data.map((sp) => {
+        const normalized = salesPersons.map((sp) => {
           // try common id fields: emp_id, id, employee_id
           const id =
             sp.emp_id || sp.id || sp.employee_id || sp.empId || sp.salesperson_id || "";
@@ -354,6 +369,7 @@ const FINAL_SUCCESS_STAGES = new Set([
     }
   };
 
+  // Updated getPeriodRange function to handle all time filters
   const getPeriodRange = (period) => {
     const now = new Date();
     const year = now.getFullYear();
@@ -365,19 +381,35 @@ const FINAL_SUCCESS_STAGES = new Set([
           start: new Date(year, month, 1),
           end: new Date(year, month + 1, 0, 23, 59, 59),
         };
-      case "quarterly": {
-        const quarter = Math.floor(month / 3);
-        const qStartMonth = quarter * 3;
-        const qEndMonth = qStartMonth + 2;
+      case "q1": // January-March
         return {
-          start: new Date(year, qStartMonth, 1),
-          end: new Date(year, qEndMonth + 1, 0, 23, 59, 59),
+          start: new Date(year, 0, 1),
+          end: new Date(year, 2, 31, 23, 59, 59),
         };
-      }
+      case "q2": // April-June
+        return {
+          start: new Date(year, 3, 1),
+          end: new Date(year, 5, 30, 23, 59, 59),
+        };
+      case "q3": // July-September
+        return {
+          start: new Date(year, 6, 1),
+          end: new Date(year, 8, 30, 23, 59, 59),
+        };
+      case "q4": // October-December
+        return {
+          start: new Date(year, 9, 1),
+          end: new Date(year, 11, 31, 23, 59, 59),
+        };
       case "yearly":
         return {
           start: new Date(year, 0, 1),
           end: new Date(year + 1, 0, 0, 23, 59, 59),
+        };
+      case "previousYear":
+        return {
+          start: new Date(year - 1, 0, 1),
+          end: new Date(year, 0, 0, 23, 59, 59),
         };
       default:
         return null;
@@ -394,11 +426,17 @@ const FINAL_SUCCESS_STAGES = new Set([
     return isYMD ? new Date(d, m - 1, y) : new Date(y, m - 1, d);
   };
 
+  // *** MODIFIED: Added role-based filtering logic ***
   const filteredData = useMemo(() => {
     const periodRange = timeFilter !== "all" ? getPeriodRange(timeFilter) : null;
 
     return leads.filter((item) => {
-      // 🔴 salesperson filter based on empId (same idea as SalesDashboard)
+      // *** NEW: If user is a salesperson, only show their own leads ***
+      if (currentUserRole === 'sales' && String(item.empId) !== String(currentUserId)) {
+        return false;
+      }
+
+      // 🔴 salesperson filter based on empId (for admins)
       if (
         selectedSalesperson &&
         String(item.empId) !== String(selectedSalesperson)
@@ -451,8 +489,20 @@ const FINAL_SUCCESS_STAGES = new Set([
       }
 
       const term = searchTerm.toLowerCase();
-      const searchStr = `${item.projectName} ${item.clientName} ${item.contractor} ${item.department} ${item.stage} ${item.salespersonName}`.toLowerCase();
-      return searchStr.includes(term);
+
+const searchStr = [
+  item.projectName,
+  item.clientName,
+  item.architectName,
+  item.contractor,
+  departmentMap[item.department] || item.department,
+  item.stage,
+  item.salespersonName,
+  item.email,
+  item.branch,
+].join(" ").toLowerCase();
+
+return searchStr.includes(term);
     });
   }, [
     leads,
@@ -461,6 +511,8 @@ const FINAL_SUCCESS_STAGES = new Set([
     startDate,
     endDate,
     timeFilter,
+    currentUserRole, // Add new dependencies
+    currentUserId,   // Add new dependencies
   ]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -505,8 +557,6 @@ const getAllowedStagesForLead = (currentStageNorm) => {
 
   return allowedStages;
 };
-
-
 
   // Enforce progressive workflow with exception for "lost" stage
   const handleStageChange = async (leadId, newStageRaw) => {
@@ -689,6 +739,16 @@ const getAllowedStagesForLead = (currentStageNorm) => {
     );
   };
 
+  // Function to get the appropriate "no results" message
+  const getNoResultsMessage = () => {
+    if (timeFilter === "q1") return "No leads found for Q1 (Jan-Mar)";
+    if (timeFilter === "q2") return "No leads found for Q2 (Apr-Jun)";
+    if (timeFilter === "q3") return "No leads found for Q3 (Jul-Sep)";
+    if (timeFilter === "q4") return "No leads found for Q4 (Oct-Dec)";
+    if (timeFilter === "previousYear") return "No leads found for previous year";
+    return "No leads found.";
+  };
+
   return (
     <Container fluid>
       <Row>
@@ -706,40 +766,46 @@ const getAllowedStagesForLead = (currentStageNorm) => {
                   </Card.Title>
                 </Col>
                 <Col className="d-flex justify-content-end align-items-center gap-2">
-                  {/* Salesperson filter (by empId) */}
-                  <Form.Select
-                    value={selectedSalesperson}
-                    onChange={(e) => {
-                      setSelectedSalesperson(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    style={{ width: "200px" }}
-                  >
-                    <option value="">All Salesperson</option>
-                    {salespersonLoading && <option>Loading...</option>}
-                    {!salespersonLoading &&
-                      salespersonOptions.map((sp) => (
-                        <option key={sp.emp_id} value={sp.emp_id}>
-                          {sp.name}
-                        </option>
-                      ))}
-                  </Form.Select>
+                  {/* *** MODIFIED: Conditionally render the Salesperson dropdown *** */}
+                  {currentUserRole !== 'sales' && (
+                    <Form.Select
+                      value={selectedSalesperson}
+                      onChange={(e) => {
+                        setSelectedSalesperson(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      style={{ width: "150px" }}
+                    >
+                      <option value="">All Salesperson</option>
+                      {salespersonLoading && <option>Loading...</option>}
+                      {!salespersonLoading &&
+                        salespersonOptions.map((sp) => (
+                          <option key={sp.emp_id} value={sp.emp_id}>
+                            {sp.name}
+                          </option>
+                        ))}
+                    </Form.Select>
+                  )}
 
-                  <Form.Select
-                    value={timeFilter}
-                    onChange={(e) => {
-                      setTimeFilter(e.target.value);
-                      setStartDate(null);
-                      setEndDate(null);
-                      setCurrentPage(1);
-                    }}
-                    style={{ width: "100px" }}
-                  >
-                    <option value="all">Search by</option>
-                    <option value="monthly">Month</option>
-                    <option value="quarterly">Quarter</option>
-                    <option value="yearly">Year</option>
-                  </Form.Select>
+                 <Form.Select
+  value={timeFilter}
+  onChange={(e) => {
+    setTimeFilter(e.target.value);
+    setStartDate(null);
+    setEndDate(null);
+    setCurrentPage(1);
+  }}
+  style={{ width: "150px" }}
+>
+  <option value="all">Search by</option>
+  <option value="monthly">Month</option>
+  <option value="q1">Q1 (Jan-Mar)</option>
+  <option value="q2">Q2 (Apr-Jun)</option>
+  <option value="q3">Q3 (Jul-Sep)</option>
+  <option value="q4">Q4 (Oct-Dec)</option>
+  {/* <option value="yearly">Year</option> */}
+  <option value="previousYear">Previous Year</option>
+</Form.Select>
 
                   <div
                     className="d-flex align-items-center gap-2"
@@ -824,7 +890,7 @@ const getAllowedStagesForLead = (currentStageNorm) => {
                     ) : (
                       <tr>
                         <td colSpan="9" className="text-center p-4">
-                          No leads found.
+                          {getNoResultsMessage()}
                         </td>
                       </tr>
                     )}

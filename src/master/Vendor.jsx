@@ -1,217 +1,239 @@
-import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Form, Button, Table, Alert } from "react-bootstrap";
-import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
+// src/VendorMaster.jsx
+import React, { useState, useMemo } from "react";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Form,
+  Button,
+  Table,
+  Pagination,
+} from "react-bootstrap";
+import { FaPlus, FaSearch, FaTrash } from "react-icons/fa";
+import toast from "react-hot-toast";
 
-const API_BASE = "https://nlfs.in/erp/index.php/Api";
+const VendorMaster = () => {
+  /* ---------------- STATE ---------------- */
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [vendorName, setVendorName] = useState("");
+  const [address, setAddress] = useState("");
+  const [contact, setContact] = useState("");
 
-export default function VendorMaster() {
   const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
 
-  const [form, setForm] = useState({ vender_name: "" });
-  const [editId, setEditId] = useState(null); // ID being edited, or null for add mode
+  /* ---------------- PAGINATION ---------------- */
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Fetch vendor list
-  const fetchVendors = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/list_mst_vender`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) throw new Error("Failed to fetch vendors");
-      const data = await response.json();
-      // Adjust based on actual API response structure
-      setVendors(Array.isArray(data) ? data : data.data || []);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-      setVendors([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  /* ---------------- SEARCH ---------------- */
+  const filteredVendors = useMemo(() => {
+    if (!vendorSearch) return vendors;
+    const s = vendorSearch.toLowerCase();
 
-  useEffect(() => {
-    fetchVendors();
-  }, []);
+    return vendors.filter(
+      (v) =>
+        v.name.toLowerCase().includes(s) ||
+        v.address.toLowerCase().includes(s) ||
+        v.contact.toLowerCase().includes(s)
+    );
+  }, [vendorSearch, vendors]);
 
-  const handleInputChange = (e) => {
-    const { value } = e.target;
-    
-    // Logic to capitalize the first letter of each word
-    // \b matches a word boundary, \w matches the first character after the boundary
-    const capitalizedValue = value.replace(/\b\w/g, (char) => char.toUpperCase());
-    
-    setForm({ vender_name: capitalizedValue });
-  };
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentVendors = filteredVendors.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
+  const totalPages = Math.ceil(filteredVendors.length / itemsPerPage);
 
-  const handleSubmit = async (e) => {
+  const handlePageChange = (page) => setCurrentPage(page);
+
+  /* ---------------- ADD VENDOR ---------------- */
+  const handleAddVendor = (e) => {
     e.preventDefault();
-    if (!form.vender_name.trim()) return;
 
-    try {
-      let response;
-      if (editId) {
-        // Update
-        response = await fetch(`${API_BASE}/update_mst_vender`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editId, vender_name: form.vender_name }),
-        });
-      } else {
-        // Add
-        response = await fetch(`${API_BASE}/add_mst_vender`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vender_name: form.vender_name }),
-        });
-      }
+    if (!vendorName.trim()) return toast.error("Enter vendor name");
+    if (!address.trim()) return toast.error("Enter address");
+    if (!contact.trim()) return toast.error("Enter contact details");
 
-      if (!response.ok) throw new Error(editId ? "Failed to update vendor" : "Failed to add vendor");
+    const newVendor = {
+      id: Date.now(),
+      name: vendorName.trim(),
+      address: address.trim(),
+      contact: contact.trim(),
+    };
 
-      setSuccess(editId ? "Vendor updated successfully!" : "Vendor added successfully!");
-      setForm({ vender_name: "" });
-      setEditId(null);
-      fetchVendors();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message);
-      setSuccess(null);
-    }
+    setVendors((prev) => [newVendor, ...prev]);
+
+    setVendorName("");
+    setAddress("");
+    setContact("");
+    setCurrentPage(1);
+
+    toast.success("Vendor added");
   };
 
-  const handleEdit = (vendor) => {
-    setForm({ vender_name: vendor.vender_name });
-    setEditId(vendor.id);
-  };
+  /* ---------------- DELETE VENDOR ---------------- */
+  const deleteVendor = (id) => {
+    if (!window.confirm("Are you sure?")) return;
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this vendor?")) return;
-
-    try {
-      const response = await fetch(`${API_BASE}/delete_mst_vender`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-
-      if (!response.ok) throw new Error("Failed to delete vendor");
-
-      setSuccess("Vendor deleted successfully!");
-      fetchVendors();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleCancel = () => {
-    setForm({ vender_name: "" });
-    setEditId(null);
+    setVendors((prev) => prev.filter((v) => v.id !== id));
+    toast.success("Vendor deleted");
   };
 
   return (
-    <Container fluid className="my-4">
-      <Card>
-        <Card.Header>
-          <Card.Title as="h4">{editId ? "Edit Vendor" : "Add New Vendor"}</Card.Title>
-        </Card.Header>
-        <Card.Body>
-          {error && <Alert variant="danger">{error}</Alert>}
-          {success && <Alert variant="success">{success}</Alert>}
+    <Container fluid>
+      <Row>
+        <Col md="12">
+          <Card className="strpied-tabled-with-hover">
+            <Card.Header
+              style={{ backgroundColor: "#fff", borderBottom: "none" }}
+            >
+              <Row className="align-items-center">
+                <Col>
+                  <Card.Title
+                    style={{ marginTop: "2rem", fontWeight: 700 }}
+                  >
+                    Vendor Master
+                  </Card.Title>
+                </Col>
 
-          <Form onSubmit={handleSubmit}>
-            <Row className="align-items-end">
-              <Col md="10">
-                <Form.Group className="mb-3">
-                  <Form.Label>Vendor Name *</Form.Label>
-                  <Form.Control
-                    type="text"
-                    placeholder="Enter vendor name"
-                    value={form.vender_name}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </Form.Group>
-              </Col>
-              <Col md="2" className="d-flex gap-2 mb-3">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  style={{ backgroundColor: "#ed3131", border: "none" }}
-                  className="w-25"
-                  title={editId ? "Update Vendor" : "Add Vendor"}
-                >
-                  {editId ? <FaEdit /> : <FaPlus />}
+                {/* Search */}
+                <Col className="d-flex justify-content-end">
+                  <div className="position-relative">
+                    <Form.Control
+                      placeholder="Search vendor..."
+                      value={vendorSearch}
+                      onChange={(e) => {
+                        setVendorSearch(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      style={{ width: "20vw", paddingRight: "35px" }}
+                    />
+                    <FaSearch
+                      className="position-absolute"
+                      style={{
+                        right: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "#999",
+                      }}
+                    />
+                  </div>
+                </Col>
+              </Row>
+            </Card.Header>
+
+            <Card.Body>
+              {/* Add Vendor */}
+              <Form onSubmit={handleAddVendor} className="mb-3 d-flex gap-2">
+                <Form.Control
+                  placeholder="Vendor Name"
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                />
+                <Form.Control
+                  placeholder="Address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+                <Form.Control
+                  placeholder="Contact Details"
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                />
+                <Button type="submit" className="add-customer-btn">
+                  <FaPlus size={14} className="me-1" /> Add Vendor
                 </Button>
-                {editId && (
-                  <Button variant="secondary" onClick={handleCancel}>
-                    Cancel
-                  </Button>
-                )}
-              </Col>
-            </Row>
-          </Form>
-        </Card.Body>
-      </Card>
+              </Form>
 
-      <Card className="mt-4">
-        <Card.Header>
-          <Card.Title as="h4">Vendor List</Card.Title>
-        </Card.Header>
-        <Card.Body>
-          {loading ? (
-            <p className="text-center">Loading vendors...</p>
-          ) : error && !vendors.length ? (
-            <Alert variant="warning text-center">No vendors found. {error}</Alert>
-          ) : (
-            <Table striped bordered hover responsive className="text-center">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Vendor Name</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendors.length > 0 ? (
-                  vendors.map((vendor) => (
-                    <tr key={vendor.id || vendor.vender_id}>
-                      <td>{vendor.id || vendor.vender_id}</td>
-                      <td>{vendor.vender_name || vendor.vendor_name}</td>
-                      <td>
-                        <div className="d-flex justify-content-center gap-2">
-                          <Button
-                            className="buttonEye"
-                            onClick={() => handleEdit(vendor)}
-                          >
-                            <FaEdit />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDelete(vendor.id || vendor.vender_id)}
-                          >
-                            <FaTrash/>
-                          </Button>
-                        </div>
-                      </td>
+              {/* Vendor Table */}
+              <div className="table-full-width table-responsive">
+                <Table className="table table-striped table-hover">
+                  <thead>
+                    <tr>
+                      <th>Sr. No.</th>
+                      <th>Vendor Name</th>
+                      <th>Address</th>
+                      <th>Contact</th>
+                      <th>Action</th>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="3" className="text-center">
-                      No vendors available.
-                    </td>
-                  </tr>
+                  </thead>
+                  <tbody>
+                    {currentVendors.length > 0 ? (
+                      currentVendors.map((v, index) => (
+                        <tr key={v.id}>
+                          <td>{indexOfFirstItem + index + 1}</td>
+                          <td>{v.name}</td>
+                          <td>{v.address}</td>
+                          <td>{v.contact}</td>
+                          <td>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => deleteVendor(v.id)}
+                            >
+                              <FaTrash />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="text-center">
+                          No vendors found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="d-flex justify-content-center p-3">
+                    <Pagination>
+                      <Pagination.First
+                        onClick={() => handlePageChange(1)}
+                        disabled={currentPage === 1}
+                      />
+                      <Pagination.Prev
+                        onClick={() =>
+                          handlePageChange(currentPage - 1)
+                        }
+                        disabled={currentPage === 1}
+                      />
+                      {Array.from({ length: totalPages }, (_, i) => (
+                        <Pagination.Item
+                          key={i + 1}
+                          active={i + 1 === currentPage}
+                          onClick={() => handlePageChange(i + 1)}
+                        >
+                          {i + 1}
+                        </Pagination.Item>
+                      ))}
+                      <Pagination.Next
+                        onClick={() =>
+                          handlePageChange(currentPage + 1)
+                        }
+                        disabled={currentPage === totalPages}
+                      />
+                      <Pagination.Last
+                        onClick={() =>
+                          handlePageChange(totalPages)
+                        }
+                        disabled={currentPage === totalPages}
+                      />
+                    </Pagination>Vendor Address
+                  </div>
                 )}
-              </tbody>
-            </Table>
-          )}
-        </Card.Body>
-      </Card>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     </Container>
   );
-}
+};
+
+export default VendorMaster;

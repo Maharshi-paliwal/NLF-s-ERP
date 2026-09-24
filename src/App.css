@@ -373,3 +373,89 @@ background-color: #000;
   background-color: #fff;
 }
 
+.quote-header {
+  font-size: 12px;
+  line-height: 1.25; /* 🔥 reduces vertical gaps */
+}
+
+.quote-header div {
+  margin: 0;
+  padding: 0;
+}
+
+.quote-header .divider {
+  border-bottom: 1px dashed #000;
+  margin: 2px 0 4px 0; /* 🔥 tighter line */
+}
+
+.ck-editor__editable {
+  min-height: 260px;
+}
+
+.payment-preview-wrapper {
+  position: relative;   /* 🔥 anchor for absolute hover box */
+  display: inline-block;
+}
+
+
+
+.payment-preview-text {
+  max-width: 280px;        /* match your td width */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+  cursor: pointer;
+}
+
+
+.payment-hover-box {
+  display: none;
+  position: absolute;
+
+  /* show beside the cell */
+  left: 105%;
+  top: 0;
+
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  z-index: 9999;
+
+  min-width: 320px;
+  max-width: 480px;
+
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.5;
+
+  /* 🔥 KEY: no scroll */
+  overflow: visible;
+  max-height: none;
+}
+
+.strpied-tabled-with-hover .table-responsive {
+  overflow: visible !important;
+}
+
+
+
+.payment-hover-box p {
+  margin: 0 0 8px 0;
+}
+
+.payment-hover-box p:last-child {
+  margin-bottom: 0;
+}
+
+.payment-hover-box strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.payment-preview-wrapper:hover .payment-hover-box {
+  display: block;
+}
