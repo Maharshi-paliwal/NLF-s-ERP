@@ -1046,7 +1046,7 @@ const AnnexureForm = () => {
         <th style={{ width: "10%" }}>Module(mm)</th>
       ) : null}
       {selectedTableType === "rmt" || selectedTableType === "sqm_and_rmt" ? (
-        <th style={{ width: "10%" }}>Module</th> {/* Changed from SQM to Module */}
+        <th style={{ width: "10%" }}>Module</th> 
       ) : null}
       <th style={{ width: selectedTableType === "common" ? "12%" : "10%" }}>Area (Sqm)</th>
       <th style={{ width: selectedTableType === "common" ? "12%" : "10%" }}>Unit</th>
